@@ -1,0 +1,305 @@
+{
+  "info": {
+    "name": "PMS API Lifecycle Endpoints",
+    "description": "Collection to test the newly implemented business logic constraints (soft-deletes, immutability, archiving, status transitions)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Users / Tenants",
+      "item": [
+        {
+          "name": "Soft Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Archive Tenant",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/1/archive",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "1", "archive"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Properties & Units",
+      "item": [
+        {
+          "name": "Update Property",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Property Name\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/properties/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "properties", "1"]
+            }
+          }
+        },
+        {
+          "name": "Soft Delete Property",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/properties/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "properties", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Unit",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"rent_amount\": 1500.00\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/units/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "units", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Unit (Will block if Active Lease)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/units/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "units", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Leases",
+      "item": [
+        {
+          "name": "Update Lease Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"TERMINATED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leases/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leases", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Finance (Payments & Invoices)",
+      "item": [
+        {
+          "name": "Update Invoice Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"PAID\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/finance/invoices/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "finance", "invoices", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Payment Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"CONFIRMED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/finance/payments/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "finance", "payments", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Maintenance & Inspections",
+      "item": [
+        {
+          "name": "Update Maintenance Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"COMPLETED\",\n    \"vendor_notes\": \"Fixed the leaking pipe\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/maintenance/requests/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "maintenance", "requests", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Vendor (Soft Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/maintenance/vendors/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "maintenance", "vendors", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Inspection (Will block if COMPLETED)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"notes\": \"Trying to change after completion\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/inspections/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "inspections", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents & Audit Logs",
+      "item": [
+        {
+          "name": "Upload Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "entity_type",
+                  "value": "LEASE",
+                  "type": "text"
+                },
+                {
+                  "key": "entity_id",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "document_type",
+                  "value": "SIGNED_CONTRACT",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "documents"]
+            }
+          }
+        },
+        {
+          "name": "Get Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auditlogs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auditlogs"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "token",
+      "value": "YOUR_JWT_TOKEN_HERE"
+    }
+  ]
+}
