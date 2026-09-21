@@ -19,6 +19,10 @@ const connectDB = async () => {
   try {
     await sequelize.authenticate();
     logger.info('MySQL Connection has been established successfully.');
+
+    // Auto-sync database models to add missing columns (tenant_id, description, etc.)
+    // await sequelize.sync({ alter: true });
+    // logger.info('Database models synchronized successfully.');
   } catch (error) {
     logger.error('Unable to connect to the database:', error);
     process.exit(1);

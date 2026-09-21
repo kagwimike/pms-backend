@@ -29,6 +29,10 @@ const Invoice = sequelize.define('Invoice', {
     type: DataTypes.DATEONLY,
     allowNull: false,
   },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   tableName: 'payments_invoice',
   timestamps: true,
@@ -36,7 +40,11 @@ const Invoice = sequelize.define('Invoice', {
   updatedAt: 'updated_at',
 });
 
+// Relationships
 Invoice.belongsTo(Lease, { foreignKey: 'lease_id', as: 'lease' });
 Lease.hasMany(Invoice, { foreignKey: 'lease_id', as: 'invoices' });
+
+Invoice.belongsTo(User, { foreignKey: 'tenant_id', as: 'tenant' });
+User.hasMany(Invoice, { foreignKey: 'tenant_id', as: 'invoices' });
 
 module.exports = Invoice;
