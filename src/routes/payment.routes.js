@@ -4,6 +4,7 @@ const { auth } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
+// Invoice Endpoints
 router
   .route('/invoices')
   .post(auth, paymentController.createInvoice)
@@ -12,8 +13,10 @@ router
 router
   .route('/invoices/:invoiceId')
   .get(auth, paymentController.getInvoice)
-  .patch(auth, paymentController.updateInvoiceStatus);
+  .patch(auth, paymentController.updateInvoiceStatus)
+  .delete(auth, paymentController.deleteInvoice);
 
+// Payment Endpoints
 router
   .route('/payments')
   .post(auth, paymentController.createPayment)
@@ -21,6 +24,8 @@ router
 
 router
   .route('/payments/:paymentId')
-  .patch(auth, paymentController.updatePaymentStatus);
+  .get(auth, paymentController.getPayment)
+  .patch(auth, paymentController.updatePaymentStatus)
+  .delete(auth, paymentController.deletePayment);
 
 module.exports = router;
