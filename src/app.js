@@ -2,7 +2,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
-require('express-async-errors'); // To handle async errors in express
+require('express-async-errors'); // Handles async errors automatically
 
 const env = require('./config/env');
 const logger = require('./utils/logger');
@@ -12,33 +12,42 @@ const notFoundHandler = require('./middleware/notFound.middleware');
 
 const app = express();
 
-if (env !== 'test') {
-  app.use(morgan(env === 'development' ? 'dev' : 'combined'));
+const currentEnv = env.env || env.nodeEnv || process.env.NODE_ENV;
+
+if (currentEnv !== 'test') {
+  app.use(morgan(currentEnv === 'development' ? 'dev' : 'combined'));
 }
 
-// set security HTTP headers
+// Set security HTTP headers
 app.use(helmet());
 
-// parse json request body
+// Parse JSON request body
 app.use(express.json());
 
-// parse urlencoded request body
+// Parse URL-encoded request body
 app.use(express.urlencoded({ extended: true }));
 
-// enable cors
+// Enable CORS
 app.use(cors());
 app.options('*', cors());
 
-// v1 api routes
+const path = require('path');
+
+// Serve media and static uploads
+const mediaDir = path.join(__dirname, '../../media');
+app.use('/media', express.static(mediaDir));
+app.use('/property_images', express.static(path.join(mediaDir, 'property_images')));
+
+// API v1 routes
 app.use('/api', routes);
 
-// send back a 404 error for any unknown api request
+// 404 handler for unknown routes
 app.use(notFoundHandler);
 
-// convert error to ApiError, if needed
+// Convert error to ApiError if needed
 app.use(errorConverter);
 
-// handle error
+// Global error handler
 app.use(errorHandler);
 
 module.exports = app;

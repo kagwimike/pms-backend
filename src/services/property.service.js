@@ -5,8 +5,27 @@ const ApiError = require('../utils/ApiError');
 const slugify = require('slugify');
 
 const createProperty = async (propertyBody, ownerId, images, amenities_ids = [], new_amenities = []) => {
-  let slug = slugify(propertyBody.name, { lower: true, strict: true });
-  const property = await Property.create({ ...propertyBody, slug, owner_id: ownerId });
+  if (!propertyBody.name || !propertyBody.name.trim()) {
+    throw new ApiError(400, 'Property name is required');
+  }
+
+  let baseSlug = slugify(propertyBody.name, { lower: true, strict: true }) || 'property';
+  let slug = baseSlug;
+  let counter = 1;
+  while (await Property.findOne({ where: { slug } })) {
+    slug = `${baseSlug}-${counter++}`;
+  }
+
+  const payload = {
+    ...propertyBody,
+    slug,
+    owner_id: ownerId,
+    total_units: parseInt(propertyBody.total_units, 10) || 1,
+    property_type: (propertyBody.property_type || 'APARTMENT').toUpperCase(),
+    status: (propertyBody.status || 'ACTIVE').toUpperCase(),
+  };
+
+  const property = await Property.create(payload);
 
   // Handle existing amenities
   if (amenities_ids && amenities_ids.length > 0) {
@@ -16,7 +35,7 @@ const createProperty = async (propertyBody, ownerId, images, amenities_ids = [],
   // Handle dynamic new amenities creation
   if (new_amenities && new_amenities.length > 0) {
     for (let name of new_amenities) {
-      if (name.trim()) {
+      if (typeof name === 'string' && name.trim()) {
         const [amenityObj] = await Amenity.findOrCreate({ where: { name: name.trim() } });
         await property.addAmenity(amenityObj);
       }
@@ -47,8 +66,14 @@ const getProperties = async (user, limit, cursorWhere, order) => {
   return []; 
 };
 
+const Unit = require('../models/Unit');
+
 const getPropertyById = async (id) => {
-  const include = [{ model: Amenity, as: 'amenities' }, { model: PropertyImage, as: 'images' }];
+  const include = [
+    { model: Amenity, as: 'amenities' },
+    { model: PropertyImage, as: 'images' },
+    { model: Unit, as: 'units' },
+  ];
   const property = await Property.findOne({ where: { id }, include });
   if (!property) {
     throw new ApiError(404, 'Property not found');

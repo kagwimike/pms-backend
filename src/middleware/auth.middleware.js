@@ -12,7 +12,7 @@ const auth = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
     const payload = jwt.verify(token, env.jwtSecret);
-    
+
     // Check if user still exists
     const user = await User.findByPk(payload.sub);
     if (!user) {
@@ -34,7 +34,7 @@ const auth = async (req, res, next) => {
 
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!roles.includes(req.user?.role)) {
       return next(new ApiError(403, 'Forbidden'));
     }
     next();

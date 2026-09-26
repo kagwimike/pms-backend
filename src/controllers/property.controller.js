@@ -5,14 +5,34 @@ const { successResponse, errorResponse } = require('../utils/formatResponse');
 const createProperty = async (req, res) => {
   const ownerId = req.user.id; 
   const { amenities, new_amenities, ...propertyData } = req.body;
-  const images = req.files; // Array of uploaded files attached by multer
-  
-  let parsedAmenities = amenities ? JSON.parse(amenities) : [];
-  let parsedNewAmenities = new_amenities ? JSON.parse(new_amenities) : [];
+  const images = req.files || [];
 
-  // Separate IDs (numbers) from new amenity names (strings) if the user mixed them
-  const amenityIds = parsedAmenities.filter(a => typeof a === 'number');
-  const amenityStrings = parsedAmenities.filter(a => typeof a === 'string');
+  let parsedAmenities = [];
+  if (amenities) {
+    try {
+      parsedAmenities = typeof amenities === 'string' ? JSON.parse(amenities) : (Array.isArray(amenities) ? amenities : []);
+    } catch (e) {
+      if (typeof amenities === 'string' && amenities.trim()) {
+        parsedAmenities = [amenities.trim()];
+      }
+    }
+  }
+
+  let parsedNewAmenities = [];
+  if (new_amenities) {
+    try {
+      parsedNewAmenities = typeof new_amenities === 'string' ? JSON.parse(new_amenities) : (Array.isArray(new_amenities) ? new_amenities : []);
+    } catch (e) {
+      if (typeof new_amenities === 'string' && new_amenities.trim()) {
+        parsedNewAmenities = [new_amenities.trim()];
+      }
+    }
+  }
+
+  const amenityIds = parsedAmenities
+    .filter(a => typeof a === 'number' || (typeof a === 'string' && !isNaN(Number(a)) && a.trim() !== ''))
+    .map(Number);
+  const amenityStrings = parsedAmenities.filter(a => typeof a === 'string' && isNaN(Number(a)));
   
   parsedNewAmenities = [...new Set([...parsedNewAmenities, ...amenityStrings])];
 
