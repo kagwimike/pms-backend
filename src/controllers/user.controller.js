@@ -1,5 +1,28 @@
 const userService = require('../services/user.service');
+const User = require('../models/User');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
+const { getCursorPagination, getCursorPagingData } = require('../utils/pagination');
+
+const getUsers = async (req, res) => {
+  try {
+    const { limit, cursor, role } = req.query;
+    const { limit: size, where, order } = getCursorPagination(cursor, limit);
+    if (role) {
+      where.role = role;
+    }
+    const data = await User.findAll({
+      where,
+      limit: size,
+      order,
+      attributes: { exclude: ['password'] }
+    });
+    const { rows, meta } = getCursorPagingData(data, size);
+    return successResponse(res, rows, 'Users retrieved successfully', 200, meta);
+  } catch (error) {
+    console.error('Error in getUsers:', error);
+    return errorResponse(res, 'Failed to retrieve users', 400, error);
+  }
+};
 
 const getUser = async (req, res) => {
   try {
@@ -42,6 +65,7 @@ const deleteUser = async (req, res) => {
 };
 
 module.exports = {
+  getUsers,
   getUser,
   updateUser,
   archiveTenant,

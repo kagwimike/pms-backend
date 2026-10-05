@@ -12,6 +12,7 @@ router
 router
   .route('/:leaseId')
   .get(auth, leaseController.getLease)
-  .patch(auth, leaseController.updateLeaseStatus);
+  .patch(auth, leaseController.updateLeaseStatus)
+  .put(auth, leaseController.updateLeaseStatus);
 
 module.exports = router;

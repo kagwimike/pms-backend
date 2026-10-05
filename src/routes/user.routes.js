@@ -5,6 +5,10 @@ const { auth } = require('../middleware/auth.middleware');
 const router = express.Router();
 
 router
+  .route('/')
+  .get(auth, userController.getUsers);
+
+router
   .route('/:userId')
   .get(auth, userController.getUser)
   .put(auth, userController.updateUser)

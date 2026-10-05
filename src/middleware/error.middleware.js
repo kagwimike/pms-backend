@@ -7,8 +7,12 @@ const { errorResponse } = require('../utils/formatResponse');
 const errorConverter = (err, req, res, next) => {
   let error = err;
   if (!(error instanceof ApiError)) {
-    const statusCode = error.statusCode || (error instanceof Sequelize.Error ? 400 : 500);
+    const isUploadError = error.name === 'MulterError' || error.message === 'Only images are allowed!';
+    const statusCode = error.statusCode || (error instanceof Sequelize.Error || isUploadError ? 400 : 500);
     let message = error.message || 'Something went wrong';
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      message = 'Each image must be 5MB or smaller.';
+    }
     
     // Graceful error messages for database constraints
     if (error.name === 'SequelizeForeignKeyConstraintError') {

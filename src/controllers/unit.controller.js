@@ -6,8 +6,10 @@ const { getCursorPagination, getCursorPagingData } = require('../utils/paginatio
 
 const getUnits = async (req, res) => {
   try {
-    const { limit, cursor, property: propertyId } = req.query;
+    const { limit, cursor, property, property_id, status } = req.query;
+    const propertyId = property || property_id;
     const { limit: size, where, order } = getCursorPagination(cursor, limit);
+    if (status) where.status = status;
     const data = await unitService.getUnits(propertyId, size, where, order);
     const { rows, meta } = getCursorPagingData(data, size);
 

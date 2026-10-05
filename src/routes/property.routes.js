@@ -12,7 +12,7 @@ router
 
 router
   .route('/:propertyId')
-  .get(propertyController.getProperty)
+  .get(auth, propertyController.getProperty)
   .put(auth, propertyController.updateProperty)
   .patch(auth, propertyController.updateProperty)
   .delete(auth, propertyController.deleteProperty);

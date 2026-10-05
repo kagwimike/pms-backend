@@ -40,8 +40,10 @@ const { getCursorPagination, getCursorPagingData } = require('../utils/paginatio
 
 const getMaintenanceRequests = async (req, res) => {
   try {
-    const { limit, cursor } = req.query;
+    const { limit, cursor, status } = req.query;
     const { limit: size, where, order } = getCursorPagination(cursor, limit);
+    if (status) where.status = status;
+    if (req.user && req.user.role === 'TENANT') where.tenant_id = req.user.id;
     const data = await MaintenanceRequest.findAll({ 
       where,
       include: ['tenant', 'property', 'unit', 'assigned_vendor'],

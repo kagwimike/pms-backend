@@ -111,6 +111,7 @@ const getPayments = async (req, res) => {
   try {
     const { limit, cursor } = req.query;
     const { limit: size, where, order } = getCursorPagination(cursor, limit);
+    if (req.user && req.user.role === 'TENANT') where.tenant_id = req.user.id;
     const data = await Payment.findAll({ where, include: ['invoice', 'tenant'], limit: size, order });
     const { rows, meta } = getCursorPagingData(data, size);
 

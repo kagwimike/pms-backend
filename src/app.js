@@ -19,7 +19,9 @@ if (currentEnv !== 'test') {
 }
 
 // Set security HTTP headers
-app.use(helmet());
+// crossOriginResourcePolicy is relaxed so the Flutter web client (served from a
+// different origin/port) can load uploaded property images from /media.
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // Parse JSON request body
 app.use(express.json());

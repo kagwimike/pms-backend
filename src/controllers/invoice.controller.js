@@ -1,9 +1,24 @@
 const Invoice = require("../models/Invoice");
+const Lease = require("../models/Lease");
+
+const INVOICE_TYPES = ["RENT", "UTILITY", "DEPOSIT", "LATE_FEE", "MAINTENANCE"];
 
 // POST /api/invoices
 exports.createInvoice = async (req, res, next) => {
   try {
-    const { lease_id, tenant_id, amount, due_date, description } = req.body;
+    const { lease_id, amount, due_date, description } = req.body;
+    let { tenant_id } = req.body;
+    const rawType = String(req.body.invoice_type || req.body.type || "RENT").toUpperCase();
+    const invoice_type = INVOICE_TYPES.includes(rawType) ? rawType : "RENT";
+
+    // Invoices belong to the lease's tenant when not supplied explicitly.
+    if (!tenant_id && lease_id) {
+      const lease = await Lease.findByPk(lease_id);
+      if (!lease) {
+        return res.status(400).json({ success: false, message: "Lease not found" });
+      }
+      tenant_id = lease.tenant_id;
+    }
 
     const invoice = await Invoice.create({
       lease_id,
@@ -11,6 +26,7 @@ exports.createInvoice = async (req, res, next) => {
       amount,
       due_date,
       description,
+      invoice_type,
       status: "PENDING",
     });
 
@@ -31,7 +47,17 @@ exports.getInvoices = async (req, res, next) => {
     const page = parseInt(req.query.page, 10) || 1;
     const offset = (page - 1) * limit;
 
+    const where = {};
+    if (req.query.status) {
+      where.status = req.query.status === "UNPAID" ? "PENDING" : req.query.status;
+    }
+    if (req.user && req.user.role === "TENANT") {
+      where.tenant_id = req.user.id;
+    }
+
     const { count, rows: invoices } = await Invoice.findAndCountAll({
+      where,
+      include: ["lease"],
       limit,
       offset,
       order: [["created_at", "DESC"]],
