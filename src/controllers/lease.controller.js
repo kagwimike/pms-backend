@@ -1,6 +1,8 @@
 const Lease = require('../models/Lease');
+const Unit = require('../models/Unit');
 const ApiError = require('../utils/ApiError');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
+const NotificationService = require('../services/notification.service');
 
 const createLease = async (req, res) => {
   try {
@@ -16,6 +18,11 @@ const createLease = async (req, res) => {
       notes,
       status: 'PENDING'
     });
+
+    const unit = await Unit.findByPk(unit_id);
+    if (unit) {
+      await NotificationService.notifyLeaseCreated(tenant_id, unit.unit_number);
+    }
 
     return successResponse(res, lease, 'Lease created successfully', 201);
   } catch (error) {
@@ -73,8 +80,20 @@ const updateLeaseStatus = async (req, res) => {
     // Valid status transitions can be checked here
     const validStatuses = ['PENDING', 'ACTIVE', 'TERMINATED', 'RENEWED'];
     if (status && validStatuses.includes(status)) {
+      const oldStatus = lease.status;
       lease.status = status;
       await lease.save();
+      
+      if (status !== oldStatus) {
+        const unit = await Unit.findByPk(lease.unit_id);
+        const unitNumber = unit ? unit.unit_number : 'Unknown';
+        if (status === 'RENEWED') {
+          await NotificationService.notifyLeaseRenewed(lease.tenant_id, unitNumber);
+        } else if (status === 'TERMINATED') {
+          await NotificationService.notifyLeaseExpired(lease.tenant_id, unitNumber);
+        }
+      }
+
       return successResponse(res, lease, 'Lease status updated successfully');
     }
     

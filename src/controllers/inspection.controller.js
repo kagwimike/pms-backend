@@ -1,8 +1,10 @@
 const Inspection = require('../models/Inspection');
 const Damage = require('../models/Damage');
+const Lease = require('../models/Lease');
 const ApiError = require('../utils/ApiError');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
 const { getCursorPagination, getCursorPagingData } = require('../utils/pagination');
+const NotificationService = require('../services/notification.service');
 
 // ==================== INSPECTION CONTROLLERS ====================
 
@@ -12,6 +14,14 @@ const createInspection = async (req, res) => {
       ...req.body,
       inspector_id: req.user.id
     });
+
+    if (inspection.lease_id) {
+      const lease = await Lease.findByPk(inspection.lease_id);
+      if (lease) {
+        await NotificationService.notifyInspectionScheduled(lease.tenant_id, inspection.inspection_date, inspection.id);
+      }
+    }
+
     return successResponse(res, inspection, 'Inspection created successfully', 201);
   } catch (error) {
     console.error('Error in createInspection:', error);
@@ -55,8 +65,17 @@ const updateInspection = async (req, res) => {
       throw new ApiError(400, 'Cannot modify an inspection after sign-off');
     }
     
+    const oldStatus = inspection.status;
     Object.assign(inspection, req.body);
     await inspection.save();
+
+    if (req.body.status === 'COMPLETED' && oldStatus !== 'COMPLETED' && inspection.lease_id) {
+      const lease = await Lease.findByPk(inspection.lease_id);
+      if (lease) {
+        await NotificationService.notifyInspectionCompleted(lease.tenant_id, inspection.id);
+      }
+    }
+
     return successResponse(res, inspection, 'Inspection updated successfully');
   } catch (error) {
     console.error('Error in updateInspection:', error);
@@ -101,6 +120,13 @@ const createDamage = async (req, res) => {
       ...req.body,
       inspection_id: inspectionId
     });
+
+    if (inspection.lease_id) {
+      const lease = await Lease.findByPk(inspection.lease_id);
+      if (lease) {
+        await NotificationService.notifyDamageReported(lease.tenant_id, damage.description, inspection.id);
+      }
+    }
 
     return successResponse(res, damage, 'Damage recorded successfully', 201);
   } catch (error) {

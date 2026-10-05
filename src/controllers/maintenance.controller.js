@@ -5,6 +5,7 @@ const { successResponse, errorResponse } = require('../utils/formatResponse');
 
 const Lease = require('../models/Lease');
 const Unit = require('../models/Unit');
+const NotificationService = require('../services/notification.service');
 
 const createMaintenanceRequest = async (req, res, next) => {
   try {
@@ -30,6 +31,9 @@ const createMaintenanceRequest = async (req, res, next) => {
       property_id: activeLease.unit.property_id
     });
     
+    // Notify tenant
+    await NotificationService.notifyMaintenanceCreated(req.user.id, request.title, request.id);
+
     return successResponse(res, request, 'Maintenance Request created successfully', 201);
   } catch (error) {
     next(error); // Pass to global error handler for graceful constraint messages
@@ -97,6 +101,9 @@ const updateMaintenanceRequest = async (req, res) => {
     const request = await MaintenanceRequest.findByPk(req.params.requestId);
     if (!request) throw new ApiError(404, 'Maintenance Request not found');
 
+    const oldStatus = request.status;
+    const oldVendorId = request.assigned_vendor_id;
+
     if (request.status === 'COMPLETED' || request.status === 'VERIFIED') {
       // If closed, only allow status updates (e.g. reopen, or transition to VERIFIED)
       const allowedKeys = ['status', 'vendor_notes'];
@@ -110,6 +117,19 @@ const updateMaintenanceRequest = async (req, res) => {
     
     Object.assign(request, req.body);
     await request.save();
+
+    // Trigger Notifications
+    if (req.body.assigned_vendor_id && req.body.assigned_vendor_id !== oldVendorId) {
+      await NotificationService.notifyMaintenanceAssigned(request.tenant_id, request.title, request.id);
+    }
+    if (req.body.status && req.body.status !== oldStatus) {
+      if (req.body.status === 'COMPLETED') {
+        await NotificationService.notifyMaintenanceCompleted(request.tenant_id, request.title, request.id);
+      } else {
+        await NotificationService.notifyMaintenanceUpdated(request.tenant_id, request.title, request.id, req.body.status);
+      }
+    }
+
     return successResponse(res, request, 'Maintenance Request updated successfully');
   } catch (error) {
     console.error('Error in updateMaintenanceRequest:', error);

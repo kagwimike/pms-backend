@@ -24,7 +24,7 @@ const MaintenanceRequest = sequelize.define('MaintenanceRequest', {
     allowNull: true,
   },
   status: {
-    type: DataTypes.ENUM('PENDING', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED', 'CANCELLED'),
+    type: DataTypes.ENUM('PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'VERIFIED', 'CANCELLED'),
     defaultValue: 'PENDING',
   },
   priority: {
@@ -38,6 +38,14 @@ const MaintenanceRequest = sequelize.define('MaintenanceRequest', {
   vendor_completed_at: {
     type: DataTypes.DATE,
     allowNull: true,
+  },
+  sla_warning_sent: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  sla_breached_sent: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
   },
 }, {
   tableName: 'maintenance_maintenancerequest',

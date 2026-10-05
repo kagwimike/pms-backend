@@ -33,6 +33,23 @@ const Invoice = sequelize.define('Invoice', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  lease_id: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+  },
+  tenant_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
+  // Reminder bookkeeping so the scheduler notifies only once
+  due_soon_notified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  overdue_notified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
 }, {
   tableName: 'payments_invoice',
   timestamps: true,

@@ -18,7 +18,7 @@ const Lease = sequelize.define('Lease', {
     allowNull: false,
   },
   status: {
-    type: DataTypes.ENUM('PENDING', 'ACTIVE', 'TERMINATED'),
+    type: DataTypes.ENUM('PENDING', 'ACTIVE', 'TERMINATED', 'EXPIRED', 'RENEWED'),
     defaultValue: 'PENDING',
   },
   rent_amount: {
@@ -32,6 +32,23 @@ const Lease = sequelize.define('Lease', {
   notes: {
     type: DataTypes.TEXT,
     allowNull: true,
+  },
+  unit_id: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+  },
+  tenant_id: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+  },
+  // Reminder bookkeeping so the scheduler notifies only once
+  renewal_reminder_sent: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  expiry_notified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
   },
 }, {
   tableName: 'leases_lease',

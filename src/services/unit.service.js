@@ -4,6 +4,7 @@ const Lease = require('../models/Lease');
 const ApiError = require('../utils/ApiError');
 
 const Property = require('../models/Property');
+const NotificationService = require('./notification.service');
 
 // ==================== UNIT SERVICES ====================
 
@@ -39,11 +40,26 @@ const createUnit = async (unitBody) => {
 };
 
 const updateUnit = async (id, updateBody) => {
-  const unit = await Unit.findByPk(id);
+  const unit = await Unit.findByPk(id, {
+    include: [{ model: Property, as: 'property', attributes: ['owner_id'] }]
+  });
   if (!unit) throw new ApiError(404, 'Unit not found');
 
+  const oldStatus = unit.status;
   Object.assign(unit, updateBody);
   await unit.save();
+
+  if (updateBody.status && updateBody.status !== oldStatus) {
+    const ownerId = unit.property?.owner_id;
+    if (ownerId) {
+      if (updateBody.status === 'VACANT') {
+        await NotificationService.notifyUnitVacant(ownerId, unit.unit_number);
+      } else if (updateBody.status === 'OCCUPIED') {
+        await NotificationService.notifyUnitOccupied(ownerId, unit.unit_number);
+      }
+    }
+  }
+
   return unit;
 };
 

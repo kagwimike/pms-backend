@@ -13,9 +13,11 @@ const Inspection = sequelize.define('Inspection', {
     type: DataTypes.ENUM('CHECKIN', 'CHECKOUT', 'ROUTINE'),
     defaultValue: 'ROUTINE',
   },
+  // Lifecycle: SCHEDULED -> COMPLETED (or CANCELLED).
+  // PASSED / ISSUES_FOUND / RECONCILED are kept for legacy rows and outcome tracking.
   status: {
-    type: DataTypes.ENUM('PASSED', 'ISSUES_FOUND', 'RECONCILED'),
-    defaultValue: 'PASSED',
+    type: DataTypes.ENUM('SCHEDULED', 'COMPLETED', 'CANCELLED', 'PASSED', 'ISSUES_FOUND', 'RECONCILED'),
+    defaultValue: 'SCHEDULED',
   },
   date: {
     type: DataTypes.DATEONLY,
@@ -29,6 +31,14 @@ const Inspection = sequelize.define('Inspection', {
   condition_score: {
     type: DataTypes.INTEGER,
     defaultValue: 100,
+  },
+  lease_id: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+  },
+  inspector_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
   },
 }, {
   tableName: 'inspections_inspection',

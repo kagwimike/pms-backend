@@ -23,8 +23,12 @@ if (currentEnv !== 'test') {
 // different origin/port) can load uploaded property images from /media.
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// Parse JSON request body
-app.use(express.json());
+// Parse JSON request body (rawBody kept for webhook signature verification)
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  },
+}));
 
 // Parse URL-encoded request body
 app.use(express.urlencoded({ extended: true }));

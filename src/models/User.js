@@ -33,6 +33,18 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  tenant_id_passport: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  citizenship: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  gender: {
+    type: DataTypes.ENUM('MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY'),
+    allowNull: true,
+  },
   profile_picture: {
     type: DataTypes.STRING,
     allowNull: true,

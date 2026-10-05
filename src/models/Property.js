@@ -45,6 +45,10 @@ const Property = sequelize.define('Property', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  owner_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
 }, {
   tableName: 'properties_property',
   timestamps: true,

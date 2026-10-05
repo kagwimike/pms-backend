@@ -1,6 +1,7 @@
 const authService = require('../services/auth.service');
 const User = require('../models/User');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
+const NotificationService = require('../services/notification.service');
 
 const register = async (req, res) => {
   try {
@@ -21,6 +22,11 @@ const register = async (req, res) => {
     }
 
     const user = await User.create(req.body);
+    
+    if (user.role === 'TENANT') {
+      await NotificationService.notifyTenantCreated(user.id, null);
+    }
+
     const tokens = authService.generateAuthTokens(user);
     return successResponse(res, {
       access: tokens.access,
