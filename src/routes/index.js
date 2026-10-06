@@ -13,6 +13,7 @@ const inspectionRoutes = require("./inspection.routes");
 const notificationRoutes = require("./notification.routes");
 const documentRoutes = require("./document.routes");
 const auditlogRoutes = require("./auditlog.routes");
+const searchRoutes = require("./search.routes");
 
 const router = express.Router();
 
@@ -30,5 +31,6 @@ router.use("/inspections", inspectionRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/documents", documentRoutes);
 router.use("/auditlogs", auditlogRoutes);
+router.use("/search", searchRoutes);
 
 module.exports = router;

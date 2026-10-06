@@ -4,7 +4,11 @@ const invoiceController = require('../controllers/invoice.controller');
 const { auth } = require('../middleware/auth.middleware');
 
 // All invoice endpoints require an authenticated user.
-router.use(auth);
+router.use((req, res, next) => {
+  const authMiddleware = require('../middleware/auth.middleware');
+  if (!authMiddleware || !authMiddleware.auth) return next(new Error("Auth middleware not loaded"));
+  return authMiddleware.auth(req, res, next);
+});
 
 // POST /api/invoices
 router.post('/', invoiceController.createInvoice);
