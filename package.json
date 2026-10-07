@@ -29,6 +29,7 @@
     "mysql2": "^3.24.3",
     "sequelize": "^6.37.8",
     "slugify": "^1.6.9",
+    "socket.io": "^4.8.4",
     "winston": "^3.19.0"
   },
   "devDependencies": {

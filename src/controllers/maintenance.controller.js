@@ -34,6 +34,17 @@ const createMaintenanceRequest = async (req, res, next) => {
     // Notify tenant
     await NotificationService.notifyMaintenanceCreated(req.user.id, request.title, request.id);
 
+    // Create Contextual Ticket Chat
+    const ChatSession = require('../models/ChatSession');
+    await ChatSession.create({
+      tenant_id: req.user.id,
+      property_id: activeLease.unit.property_id,
+      unit_id: activeLease.unit_id,
+      maintenance_id: request.id,
+      subject: `Ticket #${request.id}: ${request.title}`,
+      status: 'OPEN'
+    });
+
     return successResponse(res, request, 'Maintenance Request created successfully', 201);
   } catch (error) {
     next(error); // Pass to global error handler for graceful constraint messages
@@ -42,12 +53,19 @@ const createMaintenanceRequest = async (req, res, next) => {
 
 const { getCursorPagination, getCursorPagingData } = require('../utils/pagination');
 
-const getMaintenanceRequests = async (req, res) => {
+const getMaintenanceRequests = async (req, res, next) => {
   try {
     const { limit, cursor, status } = req.query;
     const { limit: size, where, order } = getCursorPagination(cursor, limit);
     if (status) where.status = status;
-    if (req.user && req.user.role === 'TENANT') where.tenant_id = req.user.id;
+    if (req.user && req.user.role === 'TENANT') {
+      where.tenant_id = req.user.id;
+    } else if (req.user && req.user.role === 'VENDOR') {
+      const vendor = await require('../models/Vendor').findOne({ where: { user_id: req.user.id } });
+      if (!vendor) return res.status(404).json({ success: false, message: 'Vendor profile not found' });
+      where.assigned_vendor_id = vendor.id;
+    }
+
     const data = await MaintenanceRequest.findAll({ 
       where,
       include: ['tenant', 'property', 'unit', 'assigned_vendor'],
@@ -57,8 +75,7 @@ const getMaintenanceRequests = async (req, res) => {
     const { rows, meta } = getCursorPagingData(data, size);
     return successResponse(res, rows, 'Maintenance Requests retrieved successfully', 200, meta);
   } catch (error) {
-    console.error('Error in getMaintenanceRequests:', error);
-    return errorResponse(res, 'Failed to retrieve maintenance requests', 400, error);
+    next(error);
   }
 };
 

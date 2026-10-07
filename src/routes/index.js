@@ -14,11 +14,16 @@ const notificationRoutes = require("./notification.routes");
 const documentRoutes = require("./document.routes");
 const auditlogRoutes = require("./auditlog.routes");
 const searchRoutes = require("./search.routes");
+const communicationRoutes = require("./communication.routes");
+const dashboardRoutes = require("./dashboard.routes");
+const incidentRoutes = require("./incident.routes");
 
 const router = express.Router();
 
 router.use("/auth", authRoutes);
+router.use("/dashboard", dashboardRoutes);
 router.use("/properties", propertyRoutes);
+router.use("/incidents", incidentRoutes);
 router.use("/users", userRoutes);
 router.use("/bookings", bookingRoutes);
 router.use("/units", unitRoutes);
@@ -32,5 +37,6 @@ router.use("/notifications", notificationRoutes);
 router.use("/documents", documentRoutes);
 router.use("/auditlogs", auditlogRoutes);
 router.use("/search", searchRoutes);
+router.use("/communication", communicationRoutes);
 
 module.exports = router;

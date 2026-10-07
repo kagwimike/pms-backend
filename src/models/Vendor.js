@@ -19,6 +19,14 @@ const Vendor = sequelize.define('Vendor', {
     type: DataTypes.STRING(20),
     allowNull: true,
   },
+  user_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+    references: {
+      model: 'accounts_user',
+      key: 'id',
+    }
+  }
 }, {
   tableName: 'maintenance_vendor',
   timestamps: true,

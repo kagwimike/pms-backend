@@ -3,6 +3,7 @@ const app = require("./app");
 const env = require("./config/env");
 const logger = require("./utils/logger");
 const { connectDB } = require("./config/db");
+const { initializeSocket } = require("./services/communication/socket");
 require("./jobs/registerJobs"); // Initialize jobs and queues
 
 let server;
@@ -29,7 +30,13 @@ const freePortOnWindows = (port) => {
 connectDB()
   .then(() => {
     freePortOnWindows(env.port);
-    server = app.listen(env.port, () => {
+    const http = require('http');
+    const httpServer = http.createServer(app);
+    
+    // Initialize Socket.io
+    initializeSocket(httpServer);
+
+    server = httpServer.listen(env.port, () => {
       logger.info(`Server is running on port ${env.port}`);
     });
 

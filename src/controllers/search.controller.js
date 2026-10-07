@@ -9,6 +9,7 @@ const MaintenanceRequest = require('../models/MaintenanceRequest');
 const Document = require('../models/Document');
 const Vendor = require('../models/Vendor');
 const Inspection = require('../models/Inspection');
+const Notification = require('../models/Notification');
 
 exports.globalSearch = async (req, res) => {
   try {
@@ -355,6 +356,30 @@ exports.globalSearch = async (req, res) => {
           subtitle: `${unitNum ? 'Unit ' + unitNum : ''} ${tenantName ? '· ' + tenantName : ''} · Status: ${i.status}`,
           icon: 'fact_check_rounded',
           payload: i.toJSON()
+        });
+      });
+    }
+
+    // 11. Search Notices (Notifications)
+    if (!scope || scope === 'notices' || scope === 'all') {
+      const notices = await Notification.findAll({
+        where: {
+          recipient_id: req.user.id,
+          [Op.or]: [
+            { message: { [Op.like]: searchPattern } },
+            { type: { [Op.like]: searchPattern } }
+          ]
+        },
+        limit, offset
+      });
+      notices.forEach(n => {
+        results.push({
+          type: 'NOTICE',
+          id: n.id,
+          title: n.type.replace(/_/g, ' '),
+          subtitle: n.message,
+          icon: 'notifications_rounded',
+          payload: n.toJSON()
         });
       });
     }
