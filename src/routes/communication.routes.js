@@ -15,4 +15,8 @@ router.get('/sessions/maintenance/:maintenanceId', CommunicationController.getSe
 router.get('/sessions/:sessionId/messages', CommunicationController.getMessages);
 router.post('/sessions/:sessionId/messages', CommunicationController.sendMessage);
 
+// Announcements (Admin/Owner/Caretaker only handled in controller)
+router.post('/announcements', CommunicationController.createAnnouncement);
+router.get('/announcements', CommunicationController.getAnnouncements);
+
 module.exports = router;

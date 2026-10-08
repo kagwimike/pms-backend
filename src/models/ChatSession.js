@@ -40,6 +40,26 @@ const ChatSession = sequelize.define('ChatSession', {
     type: DataTypes.BIGINT,
     allowNull: true,
   },
+  inspection_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
+  invoice_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
+  entity_type: {
+    type: DataTypes.STRING(50),
+    allowNull: true, // e.g. 'MAINTENANCE', 'INVOICE', 'LEASE'
+  },
+  entity_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
+  created_by: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
   closed_at: {
     type: DataTypes.DATE,
     allowNull: true,

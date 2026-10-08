@@ -8,6 +8,10 @@ const Notification = sequelize.define('Notification', {
     primaryKey: true,
     autoIncrement: true,
   },
+  recipient_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
   message: {
     type: DataTypes.TEXT,
     allowNull: false,

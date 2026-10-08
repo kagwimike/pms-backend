@@ -25,6 +25,10 @@ const ChatMessage = sequelize.define('ChatMessage', {
     type: DataTypes.ENUM('TEXT', 'IMAGE', 'FILE', 'SYSTEM'),
     defaultValue: 'TEXT',
   },
+  reply_to_message_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
   edited_at: {
     type: DataTypes.DATE,
     allowNull: true,

@@ -1,67 +1,67 @@
 const { Op } = require('sequelize');
 const ChatSession = require('../models/ChatSession');
 const ChatMessage = require('../models/ChatMessage');
+const ChatParticipant = require('../models/ChatParticipant');
 const User = require('../models/User');
 const { getIo } = require('../services/communication/socket');
+const { successResponse, errorResponse } = require('../utils/formatResponse');
+const { getCursorPagination, getCursorPagingData } = require('../utils/pagination');
 
-/**
- * Controller for Communication API
- */
 class CommunicationController {
   
-  /**
-   * Fetch all chat sessions for the logged-in user.
-   * Tenants see their own sessions. Admins/Owners see all.
-   */
   static async getSessions(req, res) {
     try {
       const { role, id: userId } = req.user;
-      
-      const whereClause = {};
+      const { limit, cursor } = req.query;
+
+      // Ensure user is a participant
+      const participantSessions = await ChatParticipant.findAll({
+        where: { user_id: userId, is_active: true },
+        attributes: ['session_id']
+      });
+      const sessionIds = participantSessions.map(p => p.session_id);
+
+      const pagination = getCursorPagination(cursor, limit || 20);
+
+      // Filter to sessions the user is participating in
+      const whereClause = {
+        ...pagination.where,
+        id: { [Op.in]: sessionIds.length ? sessionIds : [] }
+      };
+
+      // Fallback: If tenant, also include sessions where tenant_id = userId
       if (role === 'TENANT') {
-        whereClause.tenant_id = userId;
+        whereClause[Op.or] = [
+          { id: { [Op.in]: sessionIds } },
+          { tenant_id: userId }
+        ];
+        delete whereClause.id;
       }
-      // Assuming owners only see sessions related to their properties, but for simplicity we'll allow all for now.
-      
+
       const includeOptions = [
         { model: User, as: 'tenant', attributes: ['id', 'first_name', 'last_name', 'email', 'profile_picture'] }
       ];
 
-      if (role === 'VENDOR') {
-        const Vendor = require('../models/Vendor');
-        const MaintenanceRequest = require('../models/MaintenanceRequest');
-        const vendor = await Vendor.findOne({ where: { user_id: userId } });
-        if (vendor) {
-          includeOptions.push({
-            model: MaintenanceRequest,
-            as: 'maintenance',
-            where: { assigned_vendor_id: vendor.id },
-            required: true
-          });
-        }
-      }
-
       const sessions = await ChatSession.findAll({
         where: whereClause,
         include: includeOptions,
-        order: [['updated_at', 'DESC']]
+        order: pagination.order,
+        limit: pagination.limit
       });
 
-      res.status(200).json(sessions);
+      const paginatedData = getCursorPagingData(sessions, pagination.limit);
+      
+      return successResponse(res, paginatedData.rows, "Chat sessions retrieved", 200, paginatedData.meta);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch chat sessions', error: error.message });
+      return errorResponse(res, 'Failed to fetch chat sessions', 500, error);
     }
   }
 
-  /**
-   * Start a new chat session (e.g. Tenant opening a ticket or Manager contacting tenant)
-   */
   static async createSession(req, res) {
     try {
-      const { tenant_id, subject, property_id, unit_id, maintenance_id } = req.body;
+      const { tenant_id, subject, property_id, unit_id, maintenance_id, invoice_id, inspection_id, entity_type, entity_id } = req.body;
       const { role, id: userId } = req.user;
 
-      // Ensure tenant can only create for themselves
       const actualTenantId = role === 'TENANT' ? userId : tenant_id;
 
       const session = await ChatSession.create({
@@ -70,18 +70,36 @@ class CommunicationController {
         property_id,
         unit_id,
         maintenance_id,
+        invoice_id,
+        inspection_id,
+        entity_type,
+        entity_id,
+        created_by: userId,
         status: 'OPEN'
       });
 
-      res.status(201).json(session);
+      // Add creator as participant
+      await ChatParticipant.create({
+        session_id: session.id,
+        user_id: userId,
+        role: role
+      });
+
+      // If created by manager/vendor for a tenant, add tenant
+      if (actualTenantId && actualTenantId !== userId) {
+        await ChatParticipant.create({
+          session_id: session.id,
+          user_id: actualTenantId,
+          role: 'TENANT'
+        });
+      }
+
+      return successResponse(res, session, "Chat session created", 201);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to create chat session', error: error.message });
+      return errorResponse(res, 'Failed to create chat session', 500, error);
     }
   }
 
-  /**
-   * Fetch session by maintenance_id
-   */
   static async getSessionByMaintenance(req, res) {
     try {
       const { maintenanceId } = req.params;
@@ -91,99 +109,98 @@ class CommunicationController {
         where: { maintenance_id: maintenanceId }
       });
       
-      if (!session) return res.status(404).json({ message: 'Session not found' });
+      if (!session) return errorResponse(res, 'Session not found', 404);
       
-      // Basic security
-      if (role === 'TENANT' && session.tenant_id !== userId) return res.status(403).json({ message: 'Forbidden' });
+      if (role === 'TENANT' && session.tenant_id !== userId) return errorResponse(res, 'Forbidden', 403);
       if (role === 'VENDOR') {
         const Vendor = require('../models/Vendor');
         const MaintenanceRequest = require('../models/MaintenanceRequest');
         const vendor = await Vendor.findOne({ where: { user_id: userId } });
-        if (!vendor) return res.status(403).json({ message: 'Forbidden' });
+        if (!vendor) return errorResponse(res, 'Forbidden', 403);
         const reqMatch = await MaintenanceRequest.findOne({ where: { id: maintenanceId, assigned_vendor_id: vendor.id }});
-        if (!reqMatch) return res.status(403).json({ message: 'Forbidden' });
+        if (!reqMatch) return errorResponse(res, 'Forbidden', 403);
       }
 
-      res.status(200).json(session);
+      return successResponse(res, session, "Session retrieved", 200);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch session', error: error.message });
+      return errorResponse(res, 'Failed to fetch session', 500, error);
     }
   }
 
-  /**
-   * Fetch messages for a specific session
-   */
   static async getMessages(req, res) {
     try {
       const { sessionId } = req.params;
+      const { limit, cursor } = req.query;
 
       const session = await ChatSession.findByPk(sessionId);
-      if (!session) {
-        return res.status(404).json({ message: 'Chat session not found' });
-      }
+      if (!session) return errorResponse(res, 'Chat session not found', 404);
 
-      // Security Check: Tenant can only view their own sessions
+      // Simple Auth
       if (req.user.role === 'TENANT' && session.tenant_id !== req.user.id) {
-        return res.status(403).json({ message: 'Forbidden' });
+        return errorResponse(res, 'Forbidden', 403);
       }
       if (req.user.role === 'VENDOR') {
         const Vendor = require('../models/Vendor');
         const MaintenanceRequest = require('../models/MaintenanceRequest');
         const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
-        if (!vendor) return res.status(403).json({ message: 'Forbidden' });
+        if (!vendor) return errorResponse(res, 'Forbidden', 403);
         
         if (session.maintenance_id) {
           const reqMatch = await MaintenanceRequest.findOne({ where: { id: session.maintenance_id, assigned_vendor_id: vendor.id }});
-          if (!reqMatch) return res.status(403).json({ message: 'Forbidden' });
+          if (!reqMatch) return errorResponse(res, 'Forbidden', 403);
         } else {
-          return res.status(403).json({ message: 'Forbidden' });
+          return errorResponse(res, 'Forbidden', 403);
         }
       }
 
+      const pagination = getCursorPagination(cursor, limit || 50);
+      
+      // Override order so newest are returned, but we might want to return them ASC for the chat UI to display properly
+      // Actually we'll fetch DESC to get the latest 50 before the cursor, then reverse the rows
       const messages = await ChatMessage.findAll({
-        where: { session_id: sessionId },
+        where: { session_id: sessionId, ...pagination.where },
         include: [
           { model: User, as: 'sender', attributes: ['id', 'first_name', 'last_name', 'role', 'profile_picture'] }
         ],
-        order: [['created_at', 'ASC']]
+        order: [['id', 'DESC']],
+        limit: pagination.limit
       });
 
-      res.status(200).json(messages);
+      const paginatedData = getCursorPagingData(messages, pagination.limit);
+      
+      // Reverse so they are in chronological order for UI
+      paginatedData.rows = paginatedData.rows.reverse();
+
+      return successResponse(res, paginatedData.rows, "Messages retrieved", 200, paginatedData.meta);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to fetch messages', error: error.message });
+      return errorResponse(res, 'Failed to fetch messages', 500, error);
     }
   }
 
-  /**
-   * Send a message via REST API (also broadcasts via Socket.IO)
-   * This is useful for file attachments or clients that don't emit via socket
-   */
   static async sendMessage(req, res) {
     try {
       const { sessionId } = req.params;
-      const { message, message_type } = req.body;
+      const { message, message_type, reply_to_message_id } = req.body;
       const sender_id = req.user.id;
 
       const session = await ChatSession.findByPk(sessionId);
-      if (!session) {
-        return res.status(404).json({ message: 'Chat session not found' });
-      }
+      if (!session) return errorResponse(res, 'Chat session not found', 404);
 
-      // Security Check: Tenant can only view their own sessions
+      // Auth
       if (req.user.role === 'TENANT' && session.tenant_id !== req.user.id) {
-        return res.status(403).json({ message: 'Forbidden' });
+        return errorResponse(res, 'Forbidden', 403);
       }
       if (req.user.role === 'VENDOR') {
         const Vendor = require('../models/Vendor');
         const MaintenanceRequest = require('../models/MaintenanceRequest');
         const vendor = await Vendor.findOne({ where: { user_id: req.user.id } });
-        if (!vendor) return res.status(403).json({ message: 'Forbidden' });
+        if (!vendor) return errorResponse(res, 'Forbidden', 403);
         
         if (session.maintenance_id) {
           const reqMatch = await MaintenanceRequest.findOne({ where: { id: session.maintenance_id, assigned_vendor_id: vendor.id }});
-          if (!reqMatch) return res.status(403).json({ message: 'Forbidden' });
+          if (!reqMatch) return errorResponse(res, 'Forbidden', 403);
         } else {
-          return res.status(403).json({ message: 'Forbidden' });
+          return errorResponse(res, 'Forbidden', 403);
         }
       }
 
@@ -191,28 +208,77 @@ class CommunicationController {
         session_id: sessionId,
         sender_id,
         message,
-        message_type: message_type || 'TEXT'
+        message_type: message_type || 'TEXT',
+        reply_to_message_id
       });
 
-      // Update the session's updated_at timestamp to bubble it up in lists
       await session.update({ updated_at: new Date() });
 
-      // Fetch message with sender info to emit
       const fullMessage = await ChatMessage.findByPk(chatMessage.id, {
         include: [{ model: User, as: 'sender', attributes: ['id', 'first_name', 'last_name', 'role', 'profile_picture'] }]
       });
 
-      // Broadcast via Socket.IO
       try {
         const io = getIo();
         io.to(`session_${sessionId}`).emit('receive_message', fullMessage);
-      } catch (err) {
-         // socket might not be initialized yet during testing
+      } catch (err) {}
+
+      return successResponse(res, fullMessage, "Message sent", 201);
+    } catch (error) {
+      return errorResponse(res, 'Failed to send message', 500, error);
+    }
+  }
+
+  static async createAnnouncement(req, res) {
+    try {
+      if (req.user.role !== 'ADMIN' && req.user.role !== 'OWNER' && req.user.role !== 'CARETAKER') {
+        return errorResponse(res, 'Forbidden', 403);
+      }
+      
+      const { title, content, target_audience, target_property_id, send_via_email, send_via_sms, send_now } = req.body;
+      
+      const Announcement = require('../models/Announcement');
+      const BroadcastService = require('../services/communication/broadcast.service');
+
+      const announcement = await Announcement.create({
+        title,
+        content,
+        target_audience: target_audience || 'ALL',
+        target_property_id,
+        created_by: req.user.id,
+        send_via_email: !!send_via_email,
+        send_via_sms: !!send_via_sms,
+        status: send_now ? 'QUEUED' : 'DRAFT'
+      });
+
+      if (send_now) {
+        // Run in background instead of blocking the request
+        BroadcastService.sendAnnouncement(announcement.id).catch(err => console.error(err));
       }
 
-      res.status(201).json(fullMessage);
+      return successResponse(res, announcement, "Announcement created", 201);
     } catch (error) {
-      res.status(500).json({ message: 'Failed to send message', error: error.message });
+      return errorResponse(res, 'Failed to create announcement', 500, error);
+    }
+  }
+
+  static async getAnnouncements(req, res) {
+    try {
+      const Announcement = require('../models/Announcement');
+      const { limit, cursor } = req.query;
+      const pagination = getCursorPagination(cursor, limit || 20);
+
+      // Simple fetch for admin panel, can be filtered by role later
+      const announcements = await Announcement.findAll({
+        where: pagination.where,
+        order: pagination.order,
+        limit: pagination.limit
+      });
+
+      const paginatedData = getCursorPagingData(announcements, pagination.limit);
+      return successResponse(res, paginatedData.rows, "Announcements retrieved", 200, paginatedData.meta);
+    } catch (error) {
+      return errorResponse(res, 'Failed to fetch announcements', 500, error);
     }
   }
 }
