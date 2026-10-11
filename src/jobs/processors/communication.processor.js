@@ -30,6 +30,8 @@ const communicationProcessor = async (job) => {
     if (entityType === 'INVOICE') entityData.invoice = await Invoice.findByPk(entityId);
     if (entityType === 'PAYMENT') entityData.payment = await Payment.findByPk(entityId);
     if (entityType === 'MAINTENANCE') entityData.maintenance = await MaintenanceRequest.findByPk(entityId);
+    if (entityType === 'INSPECTION') entityData.inspection = await require('../../models/Inspection').findByPk(entityId);
+    if (entityType === 'LEASE') entityData.lease = await require('../../models/Lease').findByPk(entityId);
 
     // 3. Load active templates for eventType
     const templates = await NotificationTemplate.findAll({

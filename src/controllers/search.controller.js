@@ -140,7 +140,7 @@ exports.globalSearch = async (req, res) => {
       const data = await Property.findAll({ where: propWhere, limit: pagination.limit, order: pagination.order });
       if (isSingleScope) nextCursor = getCursorPagingData(data, pagination.limit).meta.nextCursor;
       results.PROPERTY.push(...data.map(p => ({
-        id: p.id, type: 'PROPERTY', title: p.name, subtitle: `${p.city || ''} · ${p.property_type || ''}`, status: p.status, icon: 'apartment_rounded'
+        id: p.id, type: 'PROPERTY', title: p.name, subtitle: `${p.city || ''} · ${p.property_type || ''}`, status: p.status, icon: 'apartment_rounded', propertyName: p.name, date: p.createdAt
       })));
     }
 
@@ -157,7 +157,7 @@ exports.globalSearch = async (req, res) => {
       const data = await Unit.findAll({ where: unitWhere, include: [{ model: Property, as: 'property', attributes: ['name'] }], limit: pagination.limit, order: pagination.order });
       if (isSingleScope && !nextCursor) nextCursor = getCursorPagingData(data, pagination.limit).meta.nextCursor;
       results.PROPERTY.push(...data.map(u => ({
-        id: u.id, type: 'UNIT', title: u.property ? `${u.property.name} · Unit ${u.unit_number}` : `Unit ${u.unit_number}`, subtitle: `Status: ${u.status || ''}`, status: u.status, icon: 'meeting_room_rounded'
+        id: u.id, type: 'UNIT', title: u.property ? `${u.property.name} · Unit ${u.unit_number}` : `Unit ${u.unit_number}`, subtitle: `Status: ${u.status || ''}`, status: u.status, icon: 'meeting_room_rounded', propertyName: u.property ? u.property.name : null, date: u.createdAt
       })));
     }
 
@@ -178,7 +178,7 @@ exports.globalSearch = async (req, res) => {
       results.PEOPLE.push(...data.map(u => {
         const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ');
         return {
-          id: u.id, type: 'TENANT', title: fullName || u.username || u.email, subtitle: `${u.email} ${u.phone ? '· ' + u.phone : ''}`, icon: 'person_rounded'
+          id: u.id, type: 'TENANT', title: fullName || u.username || u.email, subtitle: `${u.email} ${u.phone ? '· ' + u.phone : ''}`, icon: 'person_rounded', date: u.createdAt
         };
       }));
     }
@@ -208,7 +208,7 @@ exports.globalSearch = async (req, res) => {
       });
       if (isSingleScope && !nextCursor) nextCursor = getCursorPagingData(data, pagination.limit).meta.nextCursor;
       results.OPERATIONS.push(...data.map(m => ({
-        id: m.id, type: 'MAINTENANCE', title: m.title, subtitle: `${m.property ? m.property.name : ''} ${m.unit ? '· Unit ' + m.unit.unit_number : ''}`, status: m.status, icon: 'build_rounded'
+        id: m.id, type: 'MAINTENANCE', title: m.title, subtitle: `${m.property ? m.property.name : ''} ${m.unit ? '· Unit ' + m.unit.unit_number : ''}`, status: m.status, icon: 'build_rounded', propertyName: m.property ? m.property.name : null, date: m.createdAt
       })));
     }
 
@@ -224,7 +224,7 @@ exports.globalSearch = async (req, res) => {
       const data = await Vendor.findAll({ where: vendWhere, limit: pagination.limit, order: pagination.order });
       if (isSingleScope && !nextCursor) nextCursor = getCursorPagingData(data, pagination.limit).meta.nextCursor;
       results.PEOPLE.push(...data.map(v => ({
-        id: v.id, type: 'VENDOR', title: v.name, subtitle: `${v.phone || v.email || ''}`, icon: 'handyman_rounded'
+        id: v.id, type: 'VENDOR', title: v.name, subtitle: `${v.phone || v.email || ''}`, icon: 'handyman_rounded', date: v.createdAt
       })));
     }
 
@@ -242,7 +242,7 @@ exports.globalSearch = async (req, res) => {
         const data = await Lease.findAll({ where: leaseWhere, include: [{ model: User, as: 'tenant', attributes: ['username'] }, { model: Unit, as: 'unit', attributes: ['unit_number'] }], limit: pagination.limit, order: pagination.order });
         if (isSingleScope && !nextCursor) nextCursor = getCursorPagingData(data, pagination.limit).meta.nextCursor;
         results['LEASE & FINANCE'].push(...data.map(l => ({
-          id: l.id, type: 'LEASE', title: `Lease #${l.id} ${l.unit ? '· Unit ' + l.unit.unit_number : ''}`, subtitle: `Tenant: ${l.tenant ? l.tenant.username : 'Unknown'}`, status: l.status, icon: 'description_rounded'
+          id: l.id, type: 'LEASE', title: `Lease #${l.id} ${l.unit ? '· Unit ' + l.unit.unit_number : ''}`, subtitle: `Tenant: ${l.tenant ? l.tenant.username : 'Unknown'}`, status: l.status, icon: 'description_rounded', date: l.createdAt
         })));
       }
 
@@ -258,7 +258,7 @@ exports.globalSearch = async (req, res) => {
         const data = await Invoice.findAll({ where: invWhere, limit: pagination.limit, order: pagination.order });
         if (isSingleScope && !nextCursor) nextCursor = getCursorPagingData(data, pagination.limit).meta.nextCursor;
         results['LEASE & FINANCE'].push(...data.map(i => ({
-          id: i.id, type: 'INVOICE', title: `Invoice #${i.id}`, subtitle: `Amount: $${i.amount}`, status: i.status, icon: 'receipt_rounded'
+          id: i.id, type: 'INVOICE', title: `Invoice #${i.id}`, subtitle: `Amount: $${i.amount}`, status: i.status, icon: 'receipt_rounded', date: i.createdAt
         })));
       }
 
@@ -274,7 +274,7 @@ exports.globalSearch = async (req, res) => {
         const data = await Payment.findAll({ where: pmtWhere, limit: pagination.limit, order: pagination.order });
         if (isSingleScope && !nextCursor) nextCursor = getCursorPagingData(data, pagination.limit).meta.nextCursor;
         results['LEASE & FINANCE'].push(...data.map(p => ({
-          id: p.id, type: 'PAYMENT', title: p.transaction_reference || `Payment #${p.id}`, subtitle: `Amount: $${p.amount}`, status: p.status, icon: 'payments_rounded'
+          id: p.id, type: 'PAYMENT', title: p.transaction_reference || `Payment #${p.id}`, subtitle: `Amount: $${p.amount}`, status: p.status, icon: 'payments_rounded', date: p.createdAt
         })));
       }
     }

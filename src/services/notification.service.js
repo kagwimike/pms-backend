@@ -14,6 +14,14 @@ class NotificationService {
         message,
         link,
       });
+      
+      try {
+        const { getIo } = require('./communication/socket');
+        getIo().to(`user_${recipientId}`).emit('new_notification', notification);
+      } catch (socketError) {
+        // Socket might not be initialized yet during tests or startup
+      }
+      
       return notification;
     } catch (error) {
       console.error(`Failed to create notification of type ${type}:`, error);
@@ -173,6 +181,16 @@ class NotificationService {
       'MAINTENANCE_CREATED',
       'Maintenance Request Received',
       `We have received your maintenance request: "${ticketTitle}".`,
+      `/maintenance/${ticketId}`
+    );
+  }
+
+  static async notifyMaintenanceCreatedStaff(staffId, ticketTitle, ticketId) {
+    return this._createNotification(
+      staffId,
+      'MAINTENANCE_CREATED_STAFF',
+      'New Maintenance Request',
+      `A new maintenance request has been raised: "${ticketTitle}".`,
       `/maintenance/${ticketId}`
     );
   }

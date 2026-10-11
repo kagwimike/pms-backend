@@ -19,6 +19,13 @@ const createInspection = async (req, res) => {
       const lease = await Lease.findByPk(inspection.lease_id);
       if (lease) {
         await NotificationService.notifyInspectionScheduled(lease.tenant_id, inspection.inspection_date, inspection.id);
+        const EventBus = require('../services/communication/eventBus');
+        await EventBus.publishCommunicationEvent('INSPECTION_SCHEDULED', {
+          recipientId: lease.tenant_id,
+          entityType: 'INSPECTION',
+          entityId: inspection.id,
+          customVars: { date: inspection.inspection_date }
+        });
       }
     }
 
@@ -34,6 +41,17 @@ const getInspections = async (req, res) => {
   try {
     const { limit, cursor } = req.query;
     const { limit: size, where, order } = getCursorPagination(cursor, limit);
+    
+    // Role-based access control
+    if (req.user.role === 'TENANT') {
+      const tenantLeases = await Lease.findAll({
+        where: { tenant_id: req.user.id },
+        attributes: ['id']
+      });
+      const leaseIds = tenantLeases.map(l => l.id);
+      where.lease_id = leaseIds; // Restrict to their leases
+    }
+
     const data = await Inspection.findAll({ where, include: ['lease', 'inspector', 'damages'], limit: size, order });
     const { rows, meta } = getCursorPagingData(data, size);
     return successResponse(res, rows, 'Inspections retrieved successfully', 200, meta);
@@ -48,6 +66,13 @@ const getInspection = async (req, res) => {
   try {
     const inspection = await Inspection.findByPk(req.params.inspectionId, { include: ['lease', 'inspector', 'damages'] });
     if (!inspection) throw new ApiError(404, 'Inspection not found');
+
+    if (req.user.role === 'TENANT') {
+      if (!inspection.lease || inspection.lease.tenant_id !== req.user.id) {
+        throw new ApiError(403, 'Not authorized to view this inspection');
+      }
+    }
+
     return successResponse(res, inspection, 'Inspection retrieved successfully');
   } catch (error) {
     console.error('Error in getInspection:', error);

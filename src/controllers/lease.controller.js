@@ -22,6 +22,13 @@ const createLease = async (req, res) => {
     const unit = await Unit.findByPk(unit_id);
     if (unit) {
       await NotificationService.notifyLeaseCreated(tenant_id, unit.unit_number);
+      const EventBus = require('../services/communication/eventBus');
+      await EventBus.publishCommunicationEvent('LEASE_CREATED', {
+        recipientId: tenant_id,
+        entityType: 'LEASE',
+        entityId: lease.id,
+        customVars: { unitNumber: unit.unit_number }
+      });
     }
 
     return successResponse(res, lease, 'Lease created successfully', 201);

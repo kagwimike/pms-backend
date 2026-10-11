@@ -70,8 +70,28 @@ const verifyGoogleTokenAndLogin = async (token) => {
   }
 };
 
+const BlacklistedToken = require('../models/BlacklistedToken');
+
+const blacklistToken = async (token) => {
+  try {
+    const decoded = jwt.decode(token);
+    if (!decoded) return;
+    
+    // Set expiration based on decoded token or default to 7 days (refresh max)
+    const expiresAt = decoded.exp ? new Date(decoded.exp * 1000) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    
+    await BlacklistedToken.findOrCreate({
+      where: { token },
+      defaults: { expires_at: expiresAt }
+    });
+  } catch (error) {
+    console.error('Error blacklisting token:', error);
+  }
+};
+
 module.exports = {
   loginUserWithEmailAndPassword,
   generateAuthTokens,
   verifyGoogleTokenAndLogin,
+  blacklistToken,
 };

@@ -34,6 +34,24 @@ const createMaintenanceRequest = async (req, res, next) => {
     // Notify tenant
     await NotificationService.notifyMaintenanceCreated(req.user.id, request.title, request.id);
 
+    // Notify Caretakers
+    try {
+      const User = require('../models/User');
+      const caretakers = await User.findAll({ where: { role: 'CARETAKER' } });
+      const EventBus = require('../services/communication/eventBus');
+      for (const ct of caretakers) {
+        await NotificationService.notifyMaintenanceCreatedStaff(ct.id, request.title, request.id);
+        await EventBus.publishCommunicationEvent('MAINTENANCE_CREATED_STAFF', {
+          recipientId: ct.id,
+          entityType: 'MAINTENANCE',
+          entityId: request.id,
+          customVars: { ticketTitle: request.title }
+        });
+      }
+    } catch (e) {
+      console.error('Error notifying caretakers:', e);
+    }
+
     // Create Contextual Ticket Chat
     const ChatSession = require('../models/ChatSession');
     await ChatSession.create({

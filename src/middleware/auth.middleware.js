@@ -11,6 +11,13 @@ const auth = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
+    
+    const BlacklistedToken = require('../models/BlacklistedToken');
+    const isBlacklisted = await BlacklistedToken.findOne({ where: { token } });
+    if (isBlacklisted) {
+      throw new ApiError(401, 'Token has been revoked');
+    }
+
     const payload = jwt.verify(token, env.jwtSecret);
 
     // Check if user still exists

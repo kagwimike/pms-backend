@@ -88,8 +88,31 @@ const googleSignIn = async (req, res) => {
   }
 };
 
+const logout = async (req, res) => {
+  try {
+    const { refresh } = req.body;
+    
+    // Check auth header for access token
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const access = authHeader.split(' ')[1];
+      await authService.blacklistToken(access);
+    }
+
+    if (refresh) {
+      await authService.blacklistToken(refresh);
+    }
+    
+    return successResponse(res, null, 'User logged out successfully');
+  } catch (error) {
+    console.error('Error in logout:', error);
+    return errorResponse(res, 'Logout failed', 400, error);
+  }
+};
+
 module.exports = {
   register,
   login,
   googleSignIn,
+  logout,
 };
