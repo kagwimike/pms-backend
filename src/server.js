@@ -35,12 +35,14 @@ connectDB()
       const ChatParticipant = require('./models/ChatParticipant');
       const ChatMessage = require('./models/ChatMessage');
       const CommunicationDevice = require('./models/CommunicationDevice');
+      const SystemSetting = require('./models/SystemSetting');
 
-      // Ensure communication tables and schemas are synchronized
+      // Ensure communication and settings tables and schemas are synchronized
       await ChatSession.sync({ alter: true }).catch(() => {});
       await ChatParticipant.sync({ alter: true }).catch(() => {});
       await ChatMessage.sync({ alter: true }).catch(() => {});
       await CommunicationDevice.sync({ alter: true }).catch(() => {});
+      await SystemSetting.sync({ alter: true }).catch(() => {});
 
       await sequelize.query('ALTER TABLE communication_chat_sessions MODIFY tenant_id BIGINT NULL;').catch(() => {});
       await sequelize.query('ALTER TABLE communication_chat_messages ADD COLUMN media_url VARCHAR(500) NULL;').catch(() => {});
