@@ -28,9 +28,25 @@ const Inspection = sequelize.define('Inspection', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  checklist: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
   condition_score: {
     type: DataTypes.INTEGER,
     defaultValue: 100,
+  },
+  total_deductions: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+  },
+  deposit_refunded: {
+    type: DataTypes.DECIMAL(12, 2),
+    defaultValue: 0.00,
+  },
+  refund_status: {
+    type: DataTypes.ENUM('NONE', 'CALCULATED', 'REFUNDED', 'FORFEITED', 'DISPUTED'),
+    defaultValue: 'NONE',
   },
   lease_id: {
     type: DataTypes.BIGINT,

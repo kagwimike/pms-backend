@@ -100,26 +100,31 @@ const initializeSocket = (server) => {
 
     socket.on('send_message', async (data) => {
       try {
-        const { sessionId, message, message_type, reply_to_message_id } = data;
+        const { sessionId, message, message_type, media_url, reply_to_message_id } = data;
 
         const session = await ChatSession.findByPk(sessionId);
         if (!session) return;
 
-        // Security check via participant
+        // Security check via participant or ownership
         const isParticipant = await ChatParticipant.findOne({ where: { session_id: sessionId, user_id: socket.user.id }});
         
-        let authorized = !!isParticipant;
-        if (!authorized && socket.user.role === 'TENANT') {
-           authorized = (session.tenant_id === socket.user.id);
-        }
+        let authorized = !!isParticipant || 
+          ['ADMIN', 'OWNER'].includes(socket.user.role) || 
+          session.created_by === socket.user.id || 
+          session.tenant_id === socket.user.id;
 
         if (!authorized) return;
+
+        if (!isParticipant) {
+          await ChatParticipant.create({ session_id: sessionId, user_id: socket.user.id, role: socket.user.role });
+        }
 
         const chatMessage = await ChatMessage.create({
           session_id: sessionId,
           sender_id: socket.user.id,
-          message,
+          message: message || '',
           message_type: message_type || 'TEXT',
+          media_url: media_url || null,
           reply_to_message_id
         });
 
@@ -130,8 +135,34 @@ const initializeSocket = (server) => {
         });
 
         io.to(`session_${sessionId}`).emit('receive_message', fullMessage);
+
+        const allParticipants = await ChatParticipant.findAll({ where: { session_id: sessionId } });
+        allParticipants.forEach(p => {
+          if (p.user_id !== socket.user.id) {
+            io.to(`user_${p.user_id}`).emit('receive_message', fullMessage);
+          }
+        });
       } catch (err) {
         logger.error('Socket send_message error:', err);
+      }
+    });
+
+    socket.on('react_message', async (data) => {
+      try {
+        const { messageId, reaction, sessionId } = data;
+        const msg = await ChatMessage.findByPk(messageId);
+        if (msg) {
+          const newReaction = (msg.reaction === reaction) ? null : reaction;
+          await msg.update({ reaction: newReaction });
+          io.to(`session_${sessionId}`).emit('message_reaction', {
+            messageId,
+            sessionId,
+            reaction: newReaction,
+            userId: socket.user.id
+          });
+        }
+      } catch (err) {
+        logger.error('Socket react_message error:', err);
       }
     });
 

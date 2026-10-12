@@ -28,7 +28,37 @@ const freePortOnWindows = (port) => {
 };
 
 connectDB()
-  .then(() => {
+  .then(async () => {
+    try {
+      const { sequelize } = require('./config/db');
+      const ChatSession = require('./models/ChatSession');
+      const ChatParticipant = require('./models/ChatParticipant');
+      const ChatMessage = require('./models/ChatMessage');
+      const CommunicationDevice = require('./models/CommunicationDevice');
+
+      // Ensure communication tables and schemas are synchronized
+      await ChatSession.sync({ alter: true }).catch(() => {});
+      await ChatParticipant.sync({ alter: true }).catch(() => {});
+      await ChatMessage.sync({ alter: true }).catch(() => {});
+      await CommunicationDevice.sync({ alter: true }).catch(() => {});
+
+      await sequelize.query('ALTER TABLE communication_chat_sessions MODIFY tenant_id BIGINT NULL;').catch(() => {});
+      await sequelize.query('ALTER TABLE communication_chat_messages ADD COLUMN media_url VARCHAR(500) NULL;').catch(() => {});
+      await sequelize.query('ALTER TABLE communication_chat_messages ADD COLUMN reaction VARCHAR(20) NULL;').catch(() => {});
+      
+      // Inspection move-in/out and checklist migrations
+      await sequelize.query('ALTER TABLE inspections_inspection ADD COLUMN checklist JSON NULL;').catch(() => {});
+      await sequelize.query('ALTER TABLE inspections_inspection ADD COLUMN total_deductions DECIMAL(12, 2) DEFAULT 0.00;').catch(() => {});
+      await sequelize.query('ALTER TABLE inspections_inspection ADD COLUMN deposit_refunded DECIMAL(12, 2) DEFAULT 0.00;').catch(() => {});
+      await sequelize.query("ALTER TABLE inspections_inspection ADD COLUMN refund_status ENUM('NONE', 'CALCULATED', 'REFUNDED', 'FORFEITED', 'DISPUTED') DEFAULT 'NONE';").catch(() => {});
+      
+      // Damage pricing and catalog columns
+      await sequelize.query('ALTER TABLE inspections_damage ADD COLUMN item_name VARCHAR(100) NULL;').catch(() => {});
+      await sequelize.query("ALTER TABLE inspections_damage ADD COLUMN `condition` ENUM('GOOD', 'FAIR', 'POOR', 'BROKEN', 'MISSING') DEFAULT 'BROKEN';").catch(() => {});
+      await sequelize.query('ALTER TABLE inspections_damage ADD COLUMN quantity INT DEFAULT 1;').catch(() => {});
+      await sequelize.query('ALTER TABLE inspections_damage ADD COLUMN unit_price DECIMAL(12, 2) DEFAULT 0.00;').catch(() => {});
+    } catch (e) {}
+
     freePortOnWindows(env.port);
     const http = require('http');
     const httpServer = http.createServer(app);

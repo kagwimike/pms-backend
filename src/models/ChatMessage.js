@@ -29,6 +29,14 @@ const ChatMessage = sequelize.define('ChatMessage', {
     type: DataTypes.BIGINT,
     allowNull: true,
   },
+  media_url: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+  },
+  reaction: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+  },
   edited_at: {
     type: DataTypes.DATE,
     allowNull: true,

@@ -4,16 +4,23 @@ const { auth } = require('../middleware/auth.middleware');
 
 const router = express.Router();
 
+// Pricing catalog & checklist defaults
+router.get('/catalog', auth, inspectionController.getPricingCatalog);
+
 // General Inspection Routes
 router
   .route('/')
   .post(auth, inspectionController.createInspection)
   .get(auth, inspectionController.getInspections);
 
-// Standalone Damage creation route (optional fallback)
+// Damage standalone routes
 router
   .route('/damages')
   .post(auth, inspectionController.createDamage);
+
+router
+  .route('/damages/:damageId')
+  .delete(auth, inspectionController.deleteDamage);
 
 // Single Inspection Routes
 router
@@ -28,5 +35,14 @@ router
   .route('/:inspectionId/damages')
   .post(auth, inspectionController.createDamage)
   .get(auth, inspectionController.getDamagesByInspection);
+
+// Deposit Deductions Calculation & Reconciliation Finalization
+router
+  .route('/:inspectionId/deposit-reconciliation')
+  .get(auth, inspectionController.calculateDepositDeductions);
+
+router
+  .route('/:inspectionId/finalize-refund')
+  .post(auth, inspectionController.finalizeDepositRefund);
 
 module.exports = router;

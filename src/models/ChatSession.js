@@ -22,7 +22,7 @@ const ChatSession = sequelize.define('ChatSession', {
   },
   tenant_id: {
     type: DataTypes.BIGINT,
-    allowNull: false,
+    allowNull: true,
   },
   property_id: {
     type: DataTypes.BIGINT,
@@ -71,10 +71,12 @@ const ChatSession = sequelize.define('ChatSession', {
   updatedAt: 'updated_at',
 });
 
+module.exports = ChatSession;
+
+// Define inverse associations in child models or after export
 ChatSession.belongsTo(User, { foreignKey: 'tenant_id', as: 'tenant' });
+ChatSession.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 ChatSession.belongsTo(Property, { foreignKey: 'property_id', as: 'property' });
 ChatSession.belongsTo(Unit, { foreignKey: 'unit_id', as: 'unit' });
 ChatSession.belongsTo(Lease, { foreignKey: 'lease_id', as: 'lease' });
 ChatSession.belongsTo(MaintenanceRequest, { foreignKey: 'maintenance_id', as: 'maintenance' });
-
-module.exports = ChatSession;
