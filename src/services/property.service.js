@@ -76,6 +76,12 @@ const getPropertyById = async (id, user = null) => {
 
 const createProperty = async (propertyBody, ownerId, images, amenities_ids = [], new_amenities = []) => {
   const data = pickEditable(propertyBody);
+  if (!data.city || !String(data.city).trim()) {
+    data.city = propertyBody.county || propertyBody.city || 'Nairobi';
+  }
+  if (!data.country || !String(data.country).trim()) {
+    data.country = propertyBody.country || 'Kenya';
+  }
   for (const field of ['name', 'address', 'city', 'country']) {
     if (!data[field] || !String(data[field]).trim()) {
       throw new ApiError(400, `Property ${field} is required`);

@@ -1,4 +1,5 @@
 const propertyService = require('../services/property.service');
+const AuditService = require('../services/audit.service');
 const { successResponse } = require('../utils/formatResponse');
 const { getCursorPagination, getCursorPagingData } = require('../utils/pagination');
 
@@ -39,11 +40,25 @@ const splitAmenities = (amenities, newAmenities) => {
   return { ids, names: [...new Set(names)] };
 };
 
-const createProperty = async (req, res) => {
-  const { amenities, new_amenities, ...propertyData } = req.body;
-  const { ids, names } = splitAmenities(amenities, new_amenities);
-  const property = await propertyService.createProperty(propertyData, req.user.id, req.files || [], ids, names);
-  return successResponse(res, property, 'Property created successfully', 201);
+const createProperty = async (req, res, next) => {
+  try {
+    const { amenities, new_amenities, ...propertyData } = req.body;
+    const { ids, names } = splitAmenities(amenities, new_amenities);
+    const property = await propertyService.createProperty(propertyData, req.user.id, req.files || [], ids, names);
+    await AuditService.logEvent({
+      req,
+      action: 'PROPERTY_CREATE',
+      module: 'PROPERTIES',
+      entity_type: 'PROPERTY',
+      entity_id: property.id,
+      property_id: property.id,
+      summary: `Created property "${property.name}"`,
+      details: { name: property.name, address: property.address, property_type: property.property_type },
+    });
+    return successResponse(res, property, 'Property created successfully', 201);
+  } catch (err) {
+    next(err);
+  }
 };
 
 const getProperties = async (req, res) => {
@@ -69,13 +84,33 @@ const updateProperty = async (req, res) => {
     propertyData,
     req.user,
     hasAmenityPayload ? ids : null,
-    names,
+    names
   );
+  await AuditService.logEvent({
+    req,
+    action: 'PROPERTY_UPDATE',
+    module: 'PROPERTIES',
+    entity_type: 'PROPERTY',
+    entity_id: property.id,
+    property_id: property.id,
+    summary: `Updated property "${property.name}" (ID #${property.id})`,
+    details: propertyData,
+  });
   return successResponse(res, property, 'Property updated successfully');
 };
 
 const deleteProperty = async (req, res) => {
   const property = await propertyService.deleteProperty(req.params.propertyId, req.user);
+  await AuditService.logEvent({
+    req,
+    action: 'PROPERTY_DELETE',
+    module: 'PROPERTIES',
+    entity_type: 'PROPERTY',
+    entity_id: property.id,
+    property_id: property.id,
+    severity: 'WARNING',
+    summary: `Deleted property "${property.name}" (ID #${property.id})`,
+  });
   return successResponse(res, property, 'Property deleted successfully');
 };
 

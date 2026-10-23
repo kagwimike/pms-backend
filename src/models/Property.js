@@ -18,8 +18,9 @@ const Property = sequelize.define('Property', {
     allowNull: false,
   },
   property_type: {
-    type: DataTypes.ENUM('APARTMENT', 'HOTEL', 'AIRBNB'),
+    type: DataTypes.ENUM('APARTMENT', 'HOTEL', 'AIRBNB', 'COMMERCIAL', 'RESIDENTIAL', 'VILLA', 'MIXED_USE'),
     allowNull: false,
+    defaultValue: 'APARTMENT',
   },
   status: {
     type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'MAINTENANCE'),

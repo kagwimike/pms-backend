@@ -1,5 +1,5 @@
 const SystemSetting = require('../models/SystemSetting');
-const AuditLog = require('../models/AuditLog');
+const AuditService = require('./audit.service');
 const User = require('../models/User');
 const Property = require('../models/Property');
 const ApiError = require('../utils/ApiError');
@@ -151,25 +151,23 @@ class SettingsService {
     }
 
     // Write to AuditLog for transparency & compliance
-    try {
-      await AuditLog.create({
-        action: created ? 'SETTINGS_CREATE' : 'SETTINGS_UPDATE',
-        entity_type: `SETTINGS_${category}`,
-        entity_id: settingRecord.id,
-        details: {
-          scope,
-          scope_id,
-          category,
-          updated_fields: Object.keys(value),
-          before: previousValue,
-          after: settingRecord.settings_value,
-        },
-        ip_address: ipAddress || '127.0.0.1',
-        user_id: userId,
-      });
-    } catch (auditErr) {
-      console.error('AuditLog error in SettingsService:', auditErr);
-    }
+    await AuditService.logEvent({
+      action: created ? 'SETTINGS_CREATE' : 'SETTINGS_UPDATE',
+      module: 'SETTINGS',
+      entity_type: `SETTINGS_${category}`,
+      entity_id: settingRecord.id,
+      summary: `Updated system settings category: ${category} (${scope})`,
+      details: {
+        scope,
+        scope_id,
+        category,
+        updated_fields: Object.keys(value),
+        before: previousValue,
+        after: settingRecord.settings_value,
+      },
+      ip_address: ipAddress || '127.0.0.1',
+      user_id: userId,
+    });
 
     return settingRecord.settings_value;
   }
@@ -255,16 +253,16 @@ class SettingsService {
     Object.assign(user, updates);
     await user.save();
 
-    try {
-      await AuditLog.create({
-        action: 'PROFILE_UPDATE',
-        entity_type: 'USER',
-        entity_id: user.id,
-        details: { before: previousProfile, after: updates },
-        ip_address: ipAddress || '127.0.0.1',
-        user_id: user.id,
-      });
-    } catch (e) {}
+    await AuditService.logEvent({
+      action: 'PROFILE_UPDATE',
+      module: 'AUTH',
+      entity_type: 'USER',
+      entity_id: user.id,
+      summary: `User ${user.username} updated their profile information`,
+      details: { before: previousProfile, after: updates },
+      ip_address: ipAddress || '127.0.0.1',
+      user_id: user.id,
+    });
 
     return {
       id: user.id,
@@ -298,16 +296,17 @@ class SettingsService {
     user.password = newPassword;
     await user.save(); // hooks will re-hash password
 
-    try {
-      await AuditLog.create({
-        action: 'PASSWORD_CHANGE',
-        entity_type: 'USER',
-        entity_id: user.id,
-        details: { status: 'SUCCESS' },
-        ip_address: ipAddress || '127.0.0.1',
-        user_id: user.id,
-      });
-    } catch (e) {}
+    await AuditService.logEvent({
+      action: 'PASSWORD_CHANGE',
+      module: 'SECURITY',
+      entity_type: 'USER',
+      entity_id: user.id,
+      summary: `User ${user.username} changed their account password`,
+      severity: 'WARNING',
+      details: { status: 'SUCCESS' },
+      ip_address: ipAddress || '127.0.0.1',
+      user_id: user.id,
+    });
 
     return true;
   }

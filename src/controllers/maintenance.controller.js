@@ -6,6 +6,7 @@ const { successResponse, errorResponse } = require('../utils/formatResponse');
 const Lease = require('../models/Lease');
 const Unit = require('../models/Unit');
 const NotificationService = require('../services/notification.service');
+const AuditService = require('../services/audit.service');
 
 const createMaintenanceRequest = async (req, res, next) => {
   try {
@@ -33,6 +34,15 @@ const createMaintenanceRequest = async (req, res, next) => {
     
     // Notify tenant
     await NotificationService.notifyMaintenanceCreated(req.user.id, request.title, request.id);
+
+    await AuditService.logMaintenance({
+      req,
+      action: 'MAINTENANCE_CREATE',
+      requestId: request.id,
+      propertyId: request.property_id,
+      summary: `Created maintenance request #${request.id}: "${request.title}" (Priority: ${request.priority || 'NORMAL'})`,
+      details: { title: request.title, priority: request.priority, unit_id: request.unit_id },
+    });
 
     // Notify Caretakers
     try {
@@ -164,6 +174,18 @@ const updateMaintenanceRequest = async (req, res) => {
         await NotificationService.notifyMaintenanceUpdated(request.tenant_id, request.title, request.id, req.body.status);
       }
     }
+
+    await AuditService.logMaintenance({
+      req,
+      action: req.body.status && req.body.status !== oldStatus ? 'MAINTENANCE_STATUS_CHANGE' : 'MAINTENANCE_UPDATE',
+      requestId: request.id,
+      propertyId: request.property_id,
+      summary: `Updated maintenance request #${request.id} (Status: ${request.status})`,
+      details: {
+        before: { status: oldStatus, assigned_vendor_id: oldVendorId },
+        after: req.body,
+      },
+    });
 
     return successResponse(res, request, 'Maintenance Request updated successfully');
   } catch (error) {

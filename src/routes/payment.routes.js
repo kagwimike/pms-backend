@@ -30,6 +30,42 @@ router.post('/payments/mpesa/c2b/confirmation', paymentController.mpesaC2bConfir
 // Bank instant payment notification (public, HMAC-signed)
 router.post('/payments/bank/webhook', paymentController.bankWebhook);
 
+// ─── Bank Accounts Management ───
+const bankAccountController = require('../controllers/bankAccount.controller');
+const bankStatementController = require('../controllers/bankStatement.controller');
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB statement file limit
+});
+
+router.get('/payments/bank-accounts/banks', auth, bankAccountController.getSupportedBanks);
+router
+  .route('/payments/bank-accounts')
+  .get(auth, bankAccountController.getBankAccounts)
+  .post(auth, bankAccountController.createBankAccount);
+
+router
+  .route('/payments/bank-accounts/:id')
+  .get(auth, bankAccountController.getBankAccount)
+  .patch(auth, bankAccountController.updateBankAccount)
+  .delete(auth, bankAccountController.deleteBankAccount);
+
+router.post('/payments/bank-accounts/:id/primary', auth, bankAccountController.setPrimaryBankAccount);
+
+// ─── Bank Statement Ingestion & Reconciliation ───
+router.post('/payments/statements/upload', auth, upload.single('statement'), bankStatementController.uploadAndReconcile);
+router.get('/payments/statements', auth, bankStatementController.getStatementUploads);
+router.get('/payments/statements/:id', auth, bankStatementController.getStatementUploadById);
+
+// ─── Unmatched Deposits Queue & 1-Click Assignment (Phase 3) ───
+const unmatchedQueueController = require('../controllers/unmatchedQueue.controller');
+router.get('/payments/unmatched', auth, unmatchedQueueController.getUnmatchedQueue);
+router.get('/payments/unmatched/stats', auth, unmatchedQueueController.getQueueStats);
+router.get('/payments/unmatched/:paymentId/candidates', auth, unmatchedQueueController.getPaymentCandidates);
+router.post('/payments/unmatched/:paymentId/assign', auth, unmatchedQueueController.assignPayment);
+router.post('/payments/unmatched/:paymentId/resolve', auth, unmatchedQueueController.resolvePayment);
+
 // Payment Endpoints
 router
   .route('/payments')

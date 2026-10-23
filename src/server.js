@@ -36,14 +36,20 @@ connectDB()
       const ChatMessage = require('./models/ChatMessage');
       const CommunicationDevice = require('./models/CommunicationDevice');
       const SystemSetting = require('./models/SystemSetting');
+      const BankAccount = require('./models/BankAccount');
+      const BankStatementUpload = require('./models/BankStatementUpload');
 
-      // Ensure communication and settings tables and schemas are synchronized
+      // Ensure communication, settings, and bank tables and schemas are synchronized
       await ChatSession.sync({ alter: true }).catch(() => {});
       await ChatParticipant.sync({ alter: true }).catch(() => {});
       await ChatMessage.sync({ alter: true }).catch(() => {});
       await CommunicationDevice.sync({ alter: true }).catch(() => {});
       await SystemSetting.sync({ alter: true }).catch(() => {});
+      await BankAccount.sync({ alter: true }).catch(() => {});
+      await BankStatementUpload.sync({ alter: true }).catch(() => {});
 
+      await sequelize.query('ALTER TABLE payments_payment ADD COLUMN bank_account_id BIGINT NULL;').catch(() => {});
+      await sequelize.query('ALTER TABLE payments_payment ADD COLUMN statement_upload_id BIGINT NULL;').catch(() => {});
       await sequelize.query('ALTER TABLE communication_chat_sessions MODIFY tenant_id BIGINT NULL;').catch(() => {});
       await sequelize.query('ALTER TABLE communication_chat_messages ADD COLUMN media_url VARCHAR(500) NULL;').catch(() => {});
       await sequelize.query('ALTER TABLE communication_chat_messages ADD COLUMN reaction VARCHAR(20) NULL;').catch(() => {});
@@ -59,6 +65,11 @@ connectDB()
       await sequelize.query("ALTER TABLE inspections_damage ADD COLUMN `condition` ENUM('GOOD', 'FAIR', 'POOR', 'BROKEN', 'MISSING') DEFAULT 'BROKEN';").catch(() => {});
       await sequelize.query('ALTER TABLE inspections_damage ADD COLUMN quantity INT DEFAULT 1;').catch(() => {});
       await sequelize.query('ALTER TABLE inspections_damage ADD COLUMN unit_price DECIMAL(12, 2) DEFAULT 0.00;').catch(() => {});
+      await sequelize.query("ALTER TABLE properties_property MODIFY property_type ENUM('APARTMENT', 'HOTEL', 'AIRBNB', 'COMMERCIAL', 'RESIDENTIAL', 'VILLA', 'MIXED_USE') NOT NULL DEFAULT 'APARTMENT';").catch(() => {});
+      
+      // Audit Logs & Documents idempotent schema updates
+      const runAuditDocMigration = require('../scripts/migrate_audit_and_documents');
+      await runAuditDocMigration().catch((err) => logger.warn('Audit & Doc migration warning:', err.message));
     } catch (e) {}
 
     freePortOnWindows(env.port);

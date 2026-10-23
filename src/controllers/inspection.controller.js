@@ -10,6 +10,7 @@ const ApiError = require('../utils/ApiError');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
 const { getCursorPagination, getCursorPagingData } = require('../utils/pagination');
 const NotificationService = require('../services/notification.service');
+const AuditService = require('../services/audit.service');
 const { DEFAULT_ITEM_CATALOG, STANDARD_CHECKLIST_SECTIONS } = require('../config/inspectionCatalog');
 
 // Helper to include full rich context for an inspection
@@ -96,6 +97,16 @@ const createInspection = async (req, res) => {
     } catch (e) {}
 
     const fullInspection = await Inspection.findByPk(inspection.id, { include: inspectionIncludes });
+
+    await AuditService.logInspection({
+      req,
+      action: 'INSPECTION_CREATE',
+      inspectionId: inspection.id,
+      propertyId: lease.unit ? lease.unit.property_id : null,
+      summary: `Created ${inspection.inspection_type} inspection #${inspection.id} for Lease #${lease.id}`,
+      details: { inspection_type: inspection.inspection_type, lease_id: lease.id, date: inspection.date },
+    });
+
     return successResponse(res, fullInspection, 'Inspection created successfully', 201);
   } catch (error) {
     console.error('Error in createInspection:', error);
@@ -452,6 +463,23 @@ const finalizeDepositRefund = async (req, res) => {
     inspection.status = 'COMPLETED';
     inspection.refund_status = refundAmount > 0 ? 'REFUNDED' : 'FORFEITED';
     await inspection.save();
+
+    await AuditService.logFinance({
+      req,
+      action: 'DEPOSIT_REFUND',
+      entityType: 'DEPOSIT_REFUND',
+      entityId: refundRecord.id,
+      propertyId: lease.unit ? lease.unit.property_id : null,
+      summary: `Processed deposit reconciliation for Lease #${lease.id}: Refunded KSh ${refundAmount}, Retained deductions KSh ${deductions}`,
+      details: {
+        inspection_id: inspection.id,
+        lease_id: lease.id,
+        amount_refunded: refundAmount,
+        deductions_retained: deductions,
+        transaction_reference: refundRecord.transaction_reference,
+        payment_method: refundRecord.payment_method,
+      },
+    });
 
     // Mark unit VACANT if requested
     if (vacate_unit_now && lease.unit_id) {

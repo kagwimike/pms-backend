@@ -1,9 +1,14 @@
+const { Op } = require('sequelize');
 const Invoice = require('../models/Invoice');
 const Payment = require('../models/Payment');
+const Lease = require('../models/Lease');
+const Unit = require('../models/Unit');
+const BankAccount = require('../models/BankAccount');
 const ApiError = require('../utils/ApiError');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
 const { getCursorPagination, getCursorPagingData } = require('../utils/pagination');
 const NotificationService = require('../services/notification.service');
+const AuditService = require('../services/audit.service');
 const mpesa = require('../services/payments/mpesa.service');
 const bank = require('../services/payments/bank.service');
 const recon = require('../services/payments/reconciliation.service');
@@ -24,6 +29,14 @@ const createInvoice = async (req, res) => {
   try {
     const invoice = await Invoice.create(req.body);
     await NotificationService.notifyInvoiceCreated(invoice.tenant_id, invoice.amount, invoice.id);
+    await AuditService.logFinance({
+      req,
+      action: 'INVOICE_CREATE',
+      entityType: 'INVOICE',
+      entityId: invoice.id,
+      summary: `Created invoice #${invoice.id} for KSh ${invoice.amount} (tenant #${invoice.tenant_id})`,
+      details: { amount: invoice.amount, lease_id: invoice.lease_id, due_date: invoice.due_date },
+    });
     return successResponse(res, invoice, 'Invoice created successfully', 201);
   } catch (error) {
     return fail(res, error, 'Failed to create invoice');
@@ -68,6 +81,16 @@ const updateInvoiceStatus = async (req, res) => {
     if (status === 'OVERDUE' && oldStatus !== 'OVERDUE') {
       await NotificationService.notifyInvoiceOverdue(invoice.tenant_id, invoice.amount, invoice.id);
     }
+
+    await AuditService.logFinance({
+      req,
+      action: 'INVOICE_STATUS_CHANGE',
+      entityType: 'INVOICE',
+      entityId: invoice.id,
+      summary: `Updated invoice #${invoice.id} status from ${oldStatus} to ${status}`,
+      details: { before: { status: oldStatus }, after: { status } },
+    });
+
     return successResponse(res, invoice, 'Invoice status updated successfully');
   } catch (error) {
     return fail(res, error, 'Failed to update invoice status');
@@ -95,7 +118,7 @@ const deleteInvoice = async (req, res) => {
  */
 const createPayment = async (req, res) => {
   try {
-    const { amount, payment_method, transaction_reference, invoice_id, phone_number, notes } = req.body;
+    const { amount, payment_method, transaction_reference, invoice_id, phone_number, notes, bank_account_id } = req.body;
     if (!amount || Number(amount) <= 0) throw new ApiError(400, 'A positive amount is required');
     if (payment_method && !Payment.METHODS.includes(payment_method)) throw new ApiError(400, 'Invalid payment method');
 
@@ -124,6 +147,7 @@ const createPayment = async (req, res) => {
       invoice_id: invoice?.id || null,
       tenant_id: tenantId,
       phone_number: phone_number || null,
+      bank_account_id: bank_account_id || null,
       account_reference: invoice ? recon.invoiceReference(invoice.id) : null,
       notes: notes || null,
       status: invoice ? 'PENDING' : 'UNMATCHED',
@@ -136,6 +160,23 @@ const createPayment = async (req, res) => {
     }
 
     await payment.reload({ include: ['invoice'] });
+
+    await AuditService.logFinance({
+      req,
+      action: staff ? 'PAYMENT_RECORDED' : 'PAYMENT_SUBMITTED',
+      entityType: 'PAYMENT',
+      entityId: payment.id,
+      summary: `${staff ? 'Staff recorded' : 'Tenant submitted'} payment #${payment.id} for KSh ${payment.amount} (${payment.payment_method})`,
+      details: {
+        payment_id: payment.id,
+        amount: payment.amount,
+        payment_method: payment.payment_method,
+        transaction_reference: payment.transaction_reference,
+        invoice_id: payment.invoice_id,
+        status: payment.status,
+      },
+    });
+
     return successResponse(res, payment, staff ? 'Payment recorded successfully' : 'Payment submitted for confirmation', 201);
   } catch (error) {
     return fail(res, error, 'Failed to create payment');
@@ -270,20 +311,62 @@ const deletePayment = async (req, res) => {
 
 /** Which channels are live + instructions the app can show tenants */
 const getGateways = async (req, res) => {
-  return successResponse(res, {
-    mpesa: {
-      enabled: mpesa.isConfigured(),
-      environment: env.mpesa.env,
-      stk_push: mpesa.isConfigured() && Boolean(mpesa.callbackUrl()),
-      paybill: env.mpesa.c2bShortcode || null,
-      account_reference_format: 'INV-<invoice number>',
-    },
-    bank: {
-      enabled: bank.isConfigured(),
-      ...bank.publicDetails(),
-      account_reference_format: 'INV-<invoice number>',
-    },
-  }, 'Payment gateways');
+  try {
+    const { property_id, invoice_id } = req.query;
+    let targetPropertyId = property_id;
+
+    if (!targetPropertyId && invoice_id) {
+      const inv = await Invoice.findByPk(invoice_id, {
+        include: [{ model: Lease, as: 'lease', include: [{ model: Unit, as: 'unit' }] }],
+      });
+      targetPropertyId = inv?.lease?.unit?.property_id;
+    }
+
+    // Find active bank accounts: either matching targetPropertyId OR general accounts (property_id: null)
+    const bankWhere = { is_active: true };
+    if (targetPropertyId) {
+      bankWhere[Op.or] = [
+        { property_id: targetPropertyId },
+        { property_id: null },
+      ];
+    }
+
+    const activeBankAccounts = await BankAccount.findAll({
+      where: bankWhere,
+      attributes: [
+        'id',
+        'bank_name',
+        'account_name',
+        'account_number',
+        'bank_code',
+        'branch_name',
+        'paybill_number',
+        'currency',
+        'is_primary',
+      ],
+      order: [['is_primary', 'DESC'], ['created_at', 'ASC']],
+    });
+
+    return successResponse(res, {
+      mpesa: {
+        enabled: mpesa.isConfigured(),
+        environment: env.mpesa.env,
+        stk_push: mpesa.isConfigured() && Boolean(mpesa.callbackUrl()),
+        paybill: env.mpesa.c2bShortcode || null,
+        account_reference_format: 'INV-<invoice number>',
+      },
+      bank: {
+        enabled: activeBankAccounts.length > 0 || bank.isConfigured(),
+        name: env.bank.name,
+        paybill: env.bank.paybill || null,
+        account_number: env.bank.accountNumber || null,
+        account_reference_format: 'INV-<invoice number>',
+        accounts: activeBankAccounts,
+      },
+    }, 'Payment gateways');
+  } catch (error) {
+    return fail(res, error, 'Failed to fetch payment gateways');
+  }
 };
 
 /** Tenant (or staff on behalf of tenant) initiates an STK push for an invoice */

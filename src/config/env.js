@@ -9,9 +9,9 @@ module.exports = {
   port: process.env.PORT,
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN,
- 
 
-  dbHost: process.env.DB_HOST,
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "499613086928-mveq06t9roiv0672gv9ghpt3olnpstn8.apps.googleusercontent.com",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
   dbPort: process.env.DB_PORT,
   dbUser: process.env.DB_USER,
   dbPassword: process.env.DB_PASSWORD,

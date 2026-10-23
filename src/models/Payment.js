@@ -72,6 +72,14 @@ const Payment = sequelize.define('Payment', {
     type: DataTypes.BIGINT,
     allowNull: true,
   },
+  bank_account_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
+  statement_upload_id: {
+    type: DataTypes.BIGINT,
+    allowNull: true,
+  },
 }, {
   tableName: 'payments_payment',
   timestamps: true,
@@ -84,6 +92,14 @@ Invoice.hasMany(Payment, { foreignKey: 'invoice_id', as: 'payments' });
 
 Payment.belongsTo(User, { foreignKey: 'tenant_id', as: 'tenant' });
 User.hasMany(Payment, { foreignKey: 'tenant_id', as: 'payments' });
+
+const BankAccount = require('./BankAccount');
+Payment.belongsTo(BankAccount, { foreignKey: 'bank_account_id', as: 'bank_account' });
+BankAccount.hasMany(Payment, { foreignKey: 'bank_account_id', as: 'payments' });
+
+const BankStatementUpload = require('./BankStatementUpload');
+Payment.belongsTo(BankStatementUpload, { foreignKey: 'statement_upload_id', as: 'statement_upload' });
+BankStatementUpload.hasMany(Payment, { foreignKey: 'statement_upload_id', as: 'payments' });
 
 Payment.STATUSES = PAYMENT_STATUSES;
 Payment.METHODS = PAYMENT_METHODS;

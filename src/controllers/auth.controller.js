@@ -2,6 +2,7 @@ const authService = require('../services/auth.service');
 const User = require('../models/User');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
 const NotificationService = require('../services/notification.service');
+const AuditService = require('../services/audit.service');
 
 const register = async (req, res) => {
   try {
@@ -27,6 +28,14 @@ const register = async (req, res) => {
       await NotificationService.notifyTenantCreated(user.id, null);
     }
 
+    await AuditService.logAuth({
+      req,
+      action: 'USER_REGISTER',
+      user,
+      summary: `New user registration for ${user.username} (${user.role})`,
+      details: { email: user.email, role: user.role },
+    });
+
     const tokens = authService.generateAuthTokens(user);
     return successResponse(res, {
       access: tokens.access,
@@ -45,11 +54,19 @@ const register = async (req, res) => {
 };
 
 const login = async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const { email, password } = req.body;
     const user = await authService.loginUserWithEmailAndPassword(email, password);
     const tokens = authService.generateAuthTokens(user);
     
+    await AuditService.logAuth({
+      req,
+      action: 'LOGIN_SUCCESS',
+      user,
+      summary: `Successful login for user ${user.username}`,
+      details: { email: user.email, role: user.role },
+    });
+
     return successResponse(res, {
       access: tokens.access,
       refresh: tokens.refresh,
@@ -62,15 +79,33 @@ const login = async (req, res) => {
     }, 'User logged in successfully');
   } catch (error) {
     console.error('Error in login:', error);
+    await AuditService.logEvent({
+      req,
+      action: 'LOGIN_FAILED',
+      module: 'AUTH',
+      entity_type: 'USER',
+      summary: `Failed login attempt for email: ${email || 'unspecified'}`,
+      outcome: 'FAILURE',
+      severity: 'WARNING',
+      details: { email, reason: error.message },
+    });
     return errorResponse(res, 'Login failed', 400, error);
   }
 };
 
 const googleSignIn = async (req, res) => {
   try {
-    const { token } = req.body;
-    const user = await authService.verifyGoogleTokenAndLogin(token);
+    const { token, role } = req.body;
+    const user = await authService.verifyGoogleTokenAndLogin(token, role);
     const tokens = authService.generateAuthTokens(user);
+
+    await AuditService.logAuth({
+      req,
+      action: 'GOOGLE_SIGNIN_SUCCESS',
+      user,
+      summary: `Successful Google Sign-In for user ${user.username}`,
+      details: { email: user.email, role: user.role },
+    });
 
     return successResponse(res, {
       access: tokens.access,
@@ -79,12 +114,15 @@ const googleSignIn = async (req, res) => {
         id: user.id,
         username: user.username,
         email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
         role: user.role,
+        profile_picture: user.profile_picture,
       }
     }, 'User logged in successfully');
   } catch (error) {
     console.error('Error in googleSignIn:', error);
-    return errorResponse(res, 'Google Sign In failed', 400, error);
+    return errorResponse(res, error.message || 'Google Sign In failed', 400, error);
   }
 };
 
@@ -103,6 +141,15 @@ const logout = async (req, res) => {
       await authService.blacklistToken(refresh);
     }
     
+    if (req.user) {
+      await AuditService.logAuth({
+        req,
+        action: 'LOGOUT',
+        user: req.user,
+        summary: `User ${req.user.username} logged out`,
+      });
+    }
+
     return successResponse(res, null, 'User logged out successfully');
   } catch (error) {
     console.error('Error in logout:', error);

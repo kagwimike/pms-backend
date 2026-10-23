@@ -4,9 +4,7 @@ const User = require('../models/User');
 const ApiError = require('../utils/ApiError');
 const env = require('../config/env');
 
-// We should put this in env, but mimicking python exact code mapping for now
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "239105933863-uarm1uqc28mk9us460kr0tm9r3fv46po.apps.googleusercontent.com";
-const client = new OAuth2Client(GOOGLE_CLIENT_ID);
+const client = new OAuth2Client(env.googleClientId, env.googleClientSecret);
 
 const loginUserWithEmailAndPassword = async (email, password) => {
   const user = await User.findOne({ where: { email } });
@@ -33,36 +31,74 @@ const generateAuthTokens = (user) => {
   };
 };
 
-const verifyGoogleTokenAndLogin = async (token) => {
+const verifyGoogleTokenAndLogin = async (token, requestedRole = null) => {
   if (!token) {
     throw new ApiError(400, 'OAuth credential token is missing.');
   }
 
   try {
-    const ticket = await client.verifyIdToken({
-      idToken: token,
-      audience: GOOGLE_CLIENT_ID,
-    });
-    const payload = ticket.getPayload();
+    let email, first_name = '', last_name = '', profile_picture = null;
 
-    const email = payload.email;
-    const first_name = payload.given_name || '';
-    const last_name = payload.family_name || '';
+    // In development mode, allow simulated/mock google tokens for local testing
+    if (env.env === 'development' && (token.startsWith('dev_') || token.startsWith('mock_'))) {
+      email = token.includes('@') ? token.replace(/^(dev_|mock_)/, '') : 'demo.google@pmspro.co.ke';
+      first_name = 'Google';
+      last_name = 'User';
+      profile_picture = null;
+    } else {
+      const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: env.googleClientId,
+      });
+      const payload = ticket.getPayload();
+      email = payload.email;
+      first_name = payload.given_name || '';
+      last_name = payload.family_name || '';
+      profile_picture = payload.picture || null;
+    }
 
     if (!email) {
       throw new ApiError(400, 'Failed to resolve email from signature payload.');
     }
 
-    let [user, created] = await User.findOrCreate({
-      where: { email },
-      defaults: {
-        username: email.split('@')[0],
-        // Since password is required in the DB, we generate a random one for OAuth users
-        password: Math.random().toString(36).slice(-8), 
-        role: 'OWNER', // Mapped from 'LANDLORD' in python
-        is_verified: true,
+    // Determine target role (defaulting to OWNER if none specified or on login)
+    const validRoles = ['ADMIN', 'OWNER', 'TENANT', 'CARETAKER', 'AGENT', 'VENDOR'];
+    let roleToAssign = 'OWNER';
+    if (requestedRole) {
+      const normalized = requestedRole.toUpperCase().trim();
+      if (normalized === 'LANDLORD') {
+        roleToAssign = 'OWNER';
+      } else if (validRoles.includes(normalized)) {
+        roleToAssign = normalized;
       }
-    });
+    }
+
+    let user = await User.findOne({ where: { email } });
+    if (!user) {
+      let baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+      if (!baseUsername || baseUsername.length < 3) baseUsername = 'user_' + Math.random().toString(36).substring(2, 7);
+      let username = baseUsername;
+      let counter = 1;
+      while (await User.findOne({ where: { username } })) {
+        username = `${baseUsername}${counter++}`;
+      }
+      user = await User.create({
+        email,
+        username,
+        first_name,
+        last_name,
+        profile_picture,
+        password: Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8),
+        role: roleToAssign,
+        is_verified: true,
+      });
+    } else {
+      if (!user.first_name && first_name) user.first_name = first_name;
+      if (!user.last_name && last_name) user.last_name = last_name;
+      if (!user.profile_picture && profile_picture) user.profile_picture = profile_picture;
+      if (!user.is_verified) user.is_verified = true;
+      await user.save();
+    }
 
     return user;
   } catch (error) {

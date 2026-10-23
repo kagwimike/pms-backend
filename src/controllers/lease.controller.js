@@ -3,6 +3,7 @@ const Unit = require('../models/Unit');
 const ApiError = require('../utils/ApiError');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
 const NotificationService = require('../services/notification.service');
+const AuditService = require('../services/audit.service');
 
 const createLease = async (req, res) => {
   try {
@@ -30,6 +31,23 @@ const createLease = async (req, res) => {
         customVars: { unitNumber: unit.unit_number }
       });
     }
+
+    await AuditService.logLease({
+      req,
+      action: 'LEASE_CREATE',
+      leaseId: lease.id,
+      propertyId: unit ? unit.property_id : null,
+      summary: `Created new lease #${lease.id} for tenant #${tenant_id} on unit #${unit_id}`,
+      details: {
+        unit_id,
+        tenant_id,
+        rent_amount,
+        deposit_amount,
+        start_date,
+        end_date,
+        status: lease.status,
+      },
+    });
 
     return successResponse(res, lease, 'Lease created successfully', 201);
   } catch (error) {
@@ -99,6 +117,15 @@ const updateLeaseStatus = async (req, res) => {
         } else if (status === 'TERMINATED') {
           await NotificationService.notifyLeaseExpired(lease.tenant_id, unitNumber);
         }
+
+        await AuditService.logLease({
+          req,
+          action: 'LEASE_STATUS_CHANGE',
+          leaseId: lease.id,
+          propertyId: unit ? unit.property_id : null,
+          summary: `Updated lease #${lease.id} status from ${oldStatus} to ${status}`,
+          details: { before: { status: oldStatus }, after: { status } },
+        });
       }
 
       return successResponse(res, lease, 'Lease status updated successfully');
