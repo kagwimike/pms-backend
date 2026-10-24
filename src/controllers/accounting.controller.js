@@ -310,7 +310,8 @@ const getCashFlow = async (req, res) => {
 
 const getTenantSubledger = async (req, res) => {
   try {
-    const data = await AccountingReportService.getTenantSubledger(req.params.tenantId, req.query);
+    const tenantId = req.params.tenantId || req.query.tenantId || req.query.tenant_id;
+    const data = await AccountingReportService.getTenantSubledger(tenantId, req.query);
     return successResponse(res, data, 'Tenant Subledger retrieved successfully');
   } catch (err) {
     return fail(res, err, 'Failed to fetch Tenant Subledger');
@@ -319,7 +320,8 @@ const getTenantSubledger = async (req, res) => {
 
 const getOwnerSubledger = async (req, res) => {
   try {
-    const data = await AccountingReportService.getOwnerSubledger(req.params.ownerId, req.query);
+    const ownerId = req.params.ownerId || req.query.ownerId || req.query.owner_id;
+    const data = await AccountingReportService.getOwnerSubledger(ownerId, req.query);
     return successResponse(res, data, 'Owner Subledger retrieved successfully');
   } catch (err) {
     return fail(res, err, 'Failed to fetch Owner Subledger');

@@ -209,6 +209,8 @@ class AccountingReportService {
         total_credit: credit,
         balance_debit: balanceDebit,
         balance_credit: balanceCredit,
+        debit_balance: balanceDebit,
+        credit_balance: balanceCredit,
       };
     });
 
@@ -221,9 +223,12 @@ class AccountingReportService {
       period: { start_date, end_date },
       total_debit: grandTotalDebit,
       total_credit: grandTotalCredit,
+      total_debits: grandTotalDebit,
+      total_credits: grandTotalCredit,
       difference,
       is_balanced: isBalanced,
       accounts: reportRows,
+      rows: reportRows,
     };
   }
 
@@ -315,6 +320,8 @@ class AccountingReportService {
       net_operating_income: netIncome,
       revenues: revenueAccounts,
       expenses: expenseAccounts,
+      revenue: { total: totalRevenue, accounts: revenueAccounts },
+      expense: { total: totalExpense, accounts: expenseAccounts },
     };
   }
 
@@ -529,17 +536,79 @@ class AccountingReportService {
    * Specialized Subledger: Tenant Ledger
    * Reconciles Tenant Invoices (Debits to AR) against confirmed Payments (Credits to AR)
    */
-  static async getTenantSubledger(tenantId, { start_date = null, end_date = null }) {
+  static async getTenantSubledger(tenantId = null, { start_date = null, end_date = null } = {}) {
     const arAccount = await Account.findOne({ where: { account_code: '1200' } });
-    if (!arAccount) return { transactions: [], balance: 0 };
+    if (!arAccount) {
+      return { records: [], control_account_balance: 0, subledger_total: 0, is_reconciled: true, statement: [] };
+    }
+
+    const whereEntry = { status: 'POSTED' };
+    if (start_date && end_date) whereEntry.posting_date = { [Op.between]: [start_date, end_date] };
+
+    // Control Account Balance (Account 1200 - AR, normal debit)
+    const controlAgg = await JournalLine.findAll({
+      where: { account_id: arAccount.id },
+      include: [{ model: JournalEntry, as: 'journal_entry', where: whereEntry, attributes: [] }],
+      attributes: [
+        [fn('SUM', col('debit')), 'total_debit'],
+        [fn('SUM', col('credit')), 'total_credit'],
+      ],
+      raw: true,
+    });
+    const controlDebit = Number(controlAgg[0]?.total_debit || 0);
+    const controlCredit = Number(controlAgg[0]?.total_credit || 0);
+    const controlBalance = Math.round((controlDebit - controlCredit) * 100) / 100;
+
+    if (!tenantId) {
+      // Aggregate per tenant across subledger
+      const tenantAggs = await JournalLine.findAll({
+        where: { account_id: arAccount.id },
+        include: [
+          { model: JournalEntry, as: 'journal_entry', where: whereEntry, attributes: [] },
+          { model: User, as: 'tenant', attributes: ['id', 'first_name', 'last_name', 'username'] },
+        ],
+        attributes: [
+          'tenant_id',
+          [fn('SUM', col('debit')), 'tenant_debits'],
+          [fn('SUM', col('credit')), 'tenant_credits'],
+        ],
+        group: ['tenant_id', 'tenant.id', 'tenant.first_name', 'tenant.last_name', 'tenant.username'],
+        raw: true,
+      });
+
+      let subledgerTotal = 0;
+      const records = tenantAggs.map((t) => {
+        const d = Math.round(Number(t.tenant_debits || 0) * 100) / 100;
+        const c = Math.round(Number(t.tenant_credits || 0) * 100) / 100;
+        const bal = Math.round((d - c) * 100) / 100;
+        subledgerTotal += bal;
+        const name = `${t['tenant.first_name'] || ''} ${t['tenant.last_name'] || t['tenant.username'] || 'General/Unassigned Tenant'}`.trim();
+        return {
+          id: t.tenant_id,
+          name,
+          debits: d,
+          credits: c,
+          balance: bal,
+        };
+      });
+
+      subledgerTotal = Math.round(subledgerTotal * 100) / 100;
+      const isReconciled = Math.abs(controlBalance - subledgerTotal) < 0.01;
+
+      return {
+        control_account: '1200 - Tenant Accounts Receivable',
+        control_account_balance: controlBalance,
+        subledger_total: subledgerTotal,
+        is_reconciled: isReconciled,
+        records,
+        statement: [],
+      };
+    }
 
     const whereLine = {
       account_id: arAccount.id,
       tenant_id: tenantId,
     };
-
-    const whereEntry = { status: 'POSTED' };
-    if (start_date && end_date) whereEntry.posting_date = { [Op.between]: [start_date, end_date] };
 
     const lines = await JournalLine.findAll({
       where: whereLine,
@@ -580,7 +649,11 @@ class AccountingReportService {
     return {
       tenant_id: tenantId,
       control_account: '1200 - Tenant Accounts Receivable',
+      control_account_balance: controlBalance,
+      subledger_total: Math.round(runningBalance * 100) / 100,
       outstanding_balance: Math.round(runningBalance * 100) / 100,
+      is_reconciled: true,
+      records: items,
       statement: items,
     };
   }
@@ -589,17 +662,79 @@ class AccountingReportService {
    * Specialized Subledger: Owner Ledger
    * Reconciles collections on behalf of landlord vs management fees, repairs & payouts
    */
-  static async getOwnerSubledger(ownerId, { start_date = null, end_date = null }) {
+  static async getOwnerSubledger(ownerId = null, { start_date = null, end_date = null } = {}) {
     const ownerPayableAccount = await Account.findOne({ where: { account_code: '2200' } });
-    if (!ownerPayableAccount) return { transactions: [], balance: 0 };
+    if (!ownerPayableAccount) {
+      return { records: [], control_account_balance: 0, subledger_total: 0, is_reconciled: true, statement: [] };
+    }
+
+    const whereEntry = { status: 'POSTED' };
+    if (start_date && end_date) whereEntry.posting_date = { [Op.between]: [start_date, end_date] };
+
+    // Control Account Balance (Account 2200 - Owner Payable, normal credit)
+    const controlAgg = await JournalLine.findAll({
+      where: { account_id: ownerPayableAccount.id },
+      include: [{ model: JournalEntry, as: 'journal_entry', where: whereEntry, attributes: [] }],
+      attributes: [
+        [fn('SUM', col('debit')), 'total_debit'],
+        [fn('SUM', col('credit')), 'total_credit'],
+      ],
+      raw: true,
+    });
+    const controlDebit = Number(controlAgg[0]?.total_debit || 0);
+    const controlCredit = Number(controlAgg[0]?.total_credit || 0);
+    const controlBalance = Math.round((controlCredit - controlDebit) * 100) / 100;
+
+    if (!ownerId) {
+      // Aggregate per owner across subledger
+      const ownerAggs = await JournalLine.findAll({
+        where: { account_id: ownerPayableAccount.id },
+        include: [
+          { model: JournalEntry, as: 'journal_entry', where: whereEntry, attributes: [] },
+          { model: User, as: 'owner', attributes: ['id', 'first_name', 'last_name', 'username'] },
+        ],
+        attributes: [
+          'owner_id',
+          [fn('SUM', col('debit')), 'owner_debits'],
+          [fn('SUM', col('credit')), 'owner_credits'],
+        ],
+        group: ['owner_id', 'owner.id', 'owner.first_name', 'owner.last_name', 'owner.username'],
+        raw: true,
+      });
+
+      let subledgerTotal = 0;
+      const records = ownerAggs.map((o) => {
+        const d = Math.round(Number(o.owner_debits || 0) * 100) / 100;
+        const c = Math.round(Number(o.owner_credits || 0) * 100) / 100;
+        const bal = Math.round((c - d) * 100) / 100;
+        subledgerTotal += bal;
+        const name = `${o['owner.first_name'] || ''} ${o['owner.last_name'] || o['owner.username'] || 'General Property Owner'}`.trim();
+        return {
+          id: o.owner_id,
+          name,
+          debits: d,
+          credits: c,
+          balance: bal,
+        };
+      });
+
+      subledgerTotal = Math.round(subledgerTotal * 100) / 100;
+      const isReconciled = Math.abs(controlBalance - subledgerTotal) < 0.01;
+
+      return {
+        control_account: '2200 - Owner Funds Payable',
+        control_account_balance: controlBalance,
+        subledger_total: subledgerTotal,
+        is_reconciled: isReconciled,
+        records,
+        statement: [],
+      };
+    }
 
     const whereLine = {
       account_id: ownerPayableAccount.id,
       owner_id: ownerId,
     };
-
-    const whereEntry = { status: 'POSTED' };
-    if (start_date && end_date) whereEntry.posting_date = { [Op.between]: [start_date, end_date] };
 
     const lines = await JournalLine.findAll({
       where: whereLine,
@@ -617,8 +752,8 @@ class AccountingReportService {
 
     let runningBalance = 0;
     const items = lines.map((l) => {
-      const debit = Number(l.debit); // Deductions/Payouts reducing liability
-      const credit = Number(l.credit); // Collections credited to owner
+      const debit = Number(l.debit);
+      const credit = Number(l.credit);
       runningBalance += (credit - debit);
 
       return {
@@ -638,7 +773,11 @@ class AccountingReportService {
     return {
       owner_id: ownerId,
       control_account: '2200 - Owner Funds Payable',
+      control_account_balance: controlBalance,
+      subledger_total: Math.round(runningBalance * 100) / 100,
       funds_available_for_payout: Math.round(runningBalance * 100) / 100,
+      is_reconciled: true,
+      records: items,
       statement: items,
     };
   }
