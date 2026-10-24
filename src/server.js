@@ -70,6 +70,10 @@ connectDB()
       // Audit Logs & Documents idempotent schema updates
       const runAuditDocMigration = require('../scripts/migrate_audit_and_documents');
       await runAuditDocMigration().catch((err) => logger.warn('Audit & Doc migration warning:', err.message));
+
+      // PMS Pro Double-Entry Accounting Subsystem initialization
+      const initAccountingSystem = require('./scripts/init_accounting_system');
+      await initAccountingSystem().catch((err) => logger.warn('Accounting init warning:', err.message));
     } catch (e) {}
 
     freePortOnWindows(env.port);

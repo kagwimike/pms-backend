@@ -12,6 +12,7 @@ const AuditService = require('../services/audit.service');
 const mpesa = require('../services/payments/mpesa.service');
 const bank = require('../services/payments/bank.service');
 const recon = require('../services/payments/reconciliation.service');
+const AccountingService = require('../services/accounting/accounting.service');
 const env = require('../config/env');
 const logger = require('../utils/logger');
 
@@ -28,6 +29,9 @@ const fail = (res, error, fallback) => {
 const createInvoice = async (req, res) => {
   try {
     const invoice = await Invoice.create(req.body);
+    AccountingService.postRentCharge(invoice.id).catch((err) => {
+      logger.error(`Accounting post error for invoice #${invoice.id}: ${err.message}`);
+    });
     await NotificationService.notifyInvoiceCreated(invoice.tenant_id, invoice.amount, invoice.id);
     await AuditService.logFinance({
       req,

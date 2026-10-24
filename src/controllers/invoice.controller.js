@@ -1,5 +1,7 @@
 const Invoice = require("../models/Invoice");
 const Lease = require("../models/Lease");
+const AccountingService = require("../services/accounting/accounting.service");
+const logger = require("../utils/logger");
 
 const INVOICE_TYPES = ["RENT", "UTILITY", "DEPOSIT", "LATE_FEE", "MAINTENANCE"];
 
@@ -28,6 +30,11 @@ exports.createInvoice = async (req, res, next) => {
       description,
       invoice_type,
       status: "PENDING",
+    });
+
+    // Auto-post to double-entry ledger
+    AccountingService.postRentCharge(invoice.id).catch((err) => {
+      logger.error(`Accounting post error for invoice #${invoice.id}: ${err.message}`);
     });
 
     return res.status(201).json({

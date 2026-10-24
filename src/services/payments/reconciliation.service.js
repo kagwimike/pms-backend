@@ -16,6 +16,7 @@ const User = require('../../models/User');
 const NotificationService = require('../notification.service');
 const { normalizePhone } = require('./mpesa.service');
 const logger = require('../../utils/logger');
+const AccountingService = require('../accounting/accounting.service');
 
 /** Account reference format shown to tenants for Paybill / bank deposits */
 const invoiceReference = (invoiceId) => `INV-${invoiceId}`;
@@ -95,6 +96,14 @@ const confirmPayment = async (payment, { receipt, phone, raw } = {}) => {
   if (payment.tenant_id) {
     await NotificationService.notifyPaymentReceived(payment.tenant_id, payment.amount, payment.invoice_id);
   }
+
+  // Double-entry accounting posting engine
+  try {
+    await AccountingService.postPaymentReceipt(payment.id);
+  } catch (accErr) {
+    logger.error(`Accounting post error for payment #${payment.id}: ${accErr.message}`);
+  }
+
   return payment;
 };
 

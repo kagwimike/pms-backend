@@ -18,6 +18,7 @@ const communicationRoutes = require("./communication.routes");
 const dashboardRoutes = require("./dashboard.routes");
 const incidentRoutes = require("./incident.routes");
 const settingsRoutes = require("./settings.routes");
+const accountingRoutes = require("./accounting.routes");
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.use("/unit-types", unitTypeRoutes);
 router.use("/leases", leaseRoutes);
 router.use("/invoices", invoiceRoutes);
 router.use("/finance", paymentRoutes);
+router.use("/accounting", accountingRoutes);
 router.use("/maintenance", maintenanceRoutes);
 router.use("/inspections", inspectionRoutes);
 router.use("/notifications", notificationRoutes);
