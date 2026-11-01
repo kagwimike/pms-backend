@@ -1,6 +1,7 @@
 const express = require('express');
 const unitController = require('../controllers/unit.controller');
 const { auth } = require('../middleware/auth.middleware');
+const { checkUnitQuota } = require('../middleware/subscription.middleware');
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ router
 router
   .route('/')
   .get(auth, unitController.getUnits)
-  .post(auth, unitController.createUnit);
+  .post(auth, checkUnitQuota, unitController.createUnit);
 
 router
   .route('/:unitId')

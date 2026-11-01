@@ -19,6 +19,7 @@ const dashboardRoutes = require("./dashboard.routes");
 const incidentRoutes = require("./incident.routes");
 const settingsRoutes = require("./settings.routes");
 const accountingRoutes = require("./accounting.routes");
+const subscriptionRoutes = require("./subscription.routes");
 
 const router = express.Router();
 
@@ -42,5 +43,6 @@ router.use("/auditlogs", auditlogRoutes);
 router.use("/search", searchRoutes);
 router.use("/communication", communicationRoutes);
 router.use("/settings", settingsRoutes);
+router.use("/subscriptions", subscriptionRoutes);
 
 module.exports = router;

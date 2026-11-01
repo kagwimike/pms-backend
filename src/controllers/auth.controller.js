@@ -3,6 +3,7 @@ const User = require('../models/User');
 const { successResponse, errorResponse } = require('../utils/formatResponse');
 const NotificationService = require('../services/notification.service');
 const AuditService = require('../services/audit.service');
+const subscriptionService = require('../services/subscription.service');
 
 const register = async (req, res) => {
   try {
@@ -24,6 +25,15 @@ const register = async (req, res) => {
 
     const user = await User.create(req.body);
     
+    // Automatically provision 14-day free trial of Professional plan for owners/agents
+    if (user.role === 'OWNER' || user.role === 'AGENT' || user.role === 'ADMIN') {
+      try {
+        await subscriptionService.createTrialSubscription(user.id, 'PRO');
+      } catch (subErr) {
+        console.error('Failed to provision trial subscription:', subErr);
+      }
+    }
+
     if (user.role === 'TENANT') {
       await NotificationService.notifyTenantCreated(user.id, null);
     }

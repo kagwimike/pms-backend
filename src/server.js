@@ -74,6 +74,17 @@ connectDB()
       // PMS Pro Double-Entry Accounting Subsystem initialization
       const initAccountingSystem = require('./scripts/init_accounting_system');
       await initAccountingSystem().catch((err) => logger.warn('Accounting init warning:', err.message));
+
+      // PMS Pro Subscription & Billing Subsystem
+      const SubscriptionPlan = require('./models/SubscriptionPlan');
+      const WorkspaceSubscription = require('./models/WorkspaceSubscription');
+      const SubscriptionInvoice = require('./models/SubscriptionInvoice');
+      await SubscriptionPlan.sync({ alter: true }).catch(() => {});
+      await WorkspaceSubscription.sync({ alter: true }).catch(() => {});
+      await SubscriptionInvoice.sync({ alter: true }).catch(() => {});
+
+      const { seedSubscriptionPlans } = require('./seeders/subscriptionPlans.seed');
+      await seedSubscriptionPlans().catch((err) => logger.warn('Subscription seed warning:', err.message));
     } catch (e) {}
 
     freePortOnWindows(env.port);
@@ -85,6 +96,21 @@ connectDB()
 
     server = httpServer.listen(env.port, () => {
       logger.info(`Server is running on port ${env.port}`);
+
+      // Automated subscription expiration & trial warning scanner
+      const subscriptionService = require('./services/subscription.service');
+      // Run initial scan 30 seconds after server boot, then every 24 hours
+      setTimeout(() => {
+        subscriptionService.checkAndNotifyExpiringSubscriptions().catch((err) => {
+          logger.warn('Initial subscription expiration check warning:', err.message);
+        });
+      }, 30 * 1000);
+
+      setInterval(() => {
+        subscriptionService.checkAndNotifyExpiringSubscriptions().catch((err) => {
+          logger.warn('Daily subscription expiration check warning:', err.message);
+        });
+      }, 24 * 60 * 60 * 1000);
     });
 
     server.on("error", (error) => {
